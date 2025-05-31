@@ -21,3 +21,10 @@ endif()
 # TODO: Add tests and install targets if needed.
 add_subdirectory(deps/LIEF)
 target_link_libraries(emulator LIEF::LIEF)
+
+add_subdirectory(deps/unicorn)
+target_link_libraries(emulator unicorn)
+
+add_subdirectory(deps/capstone)
+target_link_libraries(emulator capstone)
+
