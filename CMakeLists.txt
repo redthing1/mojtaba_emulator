@@ -11,8 +11,14 @@ endif()
 
 project ("emulator")
 
-# Add source to this project's executable.
-add_executable (emulator "emulator.cpp" "emulator.h")
+add_executable(emulator 
+    src/main.cpp
+    src/Emulator.cpp
+    src/PELoader.cpp
+    src/Disassembler.cpp
+    src/ImportResolver.cpp
+    # اضافه کنید بقیه فایل‌های cpp پروژه‌تان
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET emulator PROPERTY CXX_STANDARD 20)
