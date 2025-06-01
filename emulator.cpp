@@ -7,6 +7,8 @@
 #define STACK_ADDRESS 0x2000000
 #define STACK_SIZE (2 * 1024 * 1024)
 #define PAGE_SIZE 0x1000
+#define KUSER_SHARED_DATA_ADDRESS 0x7FFE0000
+#define KUSER_SHARED_DATA_SIZE 0x1000
 
 size_t align_up(size_t size, size_t alignment) {
     return (size + alignment - 1) & ~(alignment - 1);
@@ -91,10 +93,17 @@ int main() {
         }
     }
 
+
+
     uc_mem_map(uc, STACK_ADDRESS, STACK_SIZE, UC_PROT_ALL);
     uint64_t rsp = STACK_ADDRESS + STACK_SIZE - 0x100;
     uc_reg_write(uc, UC_X86_REG_RSP, &rsp);
     uc_reg_write(uc, UC_X86_REG_RIP, &entry_point);
+
+    // Map KUSER_SHARED_DATA from real memory
+    uc_mem_map(uc, KUSER_SHARED_DATA_ADDRESS, KUSER_SHARED_DATA_SIZE, UC_PROT_READ);
+    void* shared_data = reinterpret_cast<void*>(KUSER_SHARED_DATA_ADDRESS);
+    uc_mem_write(uc, KUSER_SHARED_DATA_ADDRESS, shared_data, KUSER_SHARED_DATA_SIZE);
 
     std::cout << "[+] Emulation started\n";
 
