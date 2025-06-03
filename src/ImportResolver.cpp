@@ -29,7 +29,7 @@
                     emo->map_pe_binary(*dll, dll_base, dll_name);
                     loader.loaded_modules[dll_name] = dll_base;
                     loader.add_to_parsed_moudal(dll_name, std::move(dll));
-                    Logger::logf(Logger::Color::GRAY, "[+] Loaded DLL at: 0x%llx", dll_base);
+                  //Logger::logf(Logger::Color::GRAY, "[+] Loaded DLL at: 0x%llx", dll_base);
                 }
                 catch (...) {
                     Logger::logf(Logger::Color::RED, "[!] Failed to load DLL: %s", dll_name.c_str());
@@ -49,7 +49,7 @@
                     for (const LIEF::Function& exported_func : loader.parsed_modules[dll_name]->exported_functions()) {
                         if (func_name == exported_func.name()) {
                             resolved_addr = dll_base + exported_func.address();
-                            Logger::logf(Logger::Color::GRAY, "[+] Resolved import: %s => 0x%llx", func_name.c_str(), resolved_addr);
+                          //  Logger::logf(Logger::Color::GRAY, "[+] Resolved import: %s => 0x%llx", func_name.c_str(), resolved_addr);
                             break;
                         }
                     }
@@ -66,7 +66,7 @@
                     for (const auto& export_entry : export_object->entries()) {
                         if (export_entry.ordinal() == ordinal) {
                             resolved_addr = dll_base + export_entry.address();
-                            Logger::logf(Logger::Color::YELLOW, "[+] Resolved ordinal import #%d => 0x%llx", ordinal, resolved_addr);
+                          //  Logger::logf(Logger::Color::YELLOW, "[+] Resolved ordinal import #%d => 0x%llx", ordinal, resolved_addr);
                             break;
                         }
                     }

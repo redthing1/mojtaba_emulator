@@ -172,5 +172,5 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     auto Dll_rva = address - bin->base;
 
     Logger::logf(Logger::Color::YELLOW, "[+] %s Called.", resolver->function_name_resoler(dllname, Dll_rva).c_str());
-    emu->emu_ret();
+    //emu->emu_ret();
 }
