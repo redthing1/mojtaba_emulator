@@ -364,5 +364,5 @@ FodyWeavers.xsd
 
 # no deps
 deps/
-
+pdb/
 .vs/

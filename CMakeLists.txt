@@ -26,6 +26,10 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET emulator PROPERTY CXX_STANDARD 20)
 endif()
 
+if (WIN32)
+    target_link_libraries(emulator dbghelp)
+endif()
+
 # TODO: Add tests and install targets if needed.
 add_subdirectory(deps/LIEF)
 target_link_libraries(emulator LIEF::LIEF)
@@ -35,3 +39,4 @@ target_link_libraries(emulator unicorn)
 
 add_subdirectory(deps/capstone)
 target_link_libraries(emulator capstone)
+

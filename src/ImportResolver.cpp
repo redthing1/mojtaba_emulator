@@ -10,10 +10,11 @@ class ImportResolver {
     Emulator* emo;
 
 public:
+
     ImportResolver(uc_engine* unicorn, PELoader& pe_loader, Emulator* emulator)
         : uc(unicorn), loader(pe_loader), emo(emulator) {
     }
-
+  
     void resolve_imports(const LIEF::PE::Binary& binary, std::string name) {
         for (LIEF::PE::Import& import : binary.imports()) {
             std::string dll_name = import.name();
@@ -36,7 +37,7 @@ public:
                     uint64_t dll_base =  emo->reserve_memory( dll->optional_header().sizeof_image());
                     emo->map_pe_binary( *dll, dll_base, dll_name);
                     loader.loaded_modules[dll_name] = dll_base;
-                    loader.parsed_modules[dll_name] = std::move(dll);
+                    loader.add_to_parsed_moudal(dll_name,std::move(dll));
                     std::cout << "[+] Loaded DLL at: 0x" << std::hex << dll_base << "\n";
                 }
                 catch (...) {
@@ -67,7 +68,25 @@ public:
             }
         }
     }
+    std::string get_exported_function_name(const std::string& dll_name, uint64_t address) {
 
+        for (auto export_func : loader.parsed_modules[dll_name]->exported_functions()) {
+            std::cout << "Name : " << export_func.name();
+        }
+        return "";
+    }
+
+    std::string function_name_resoler(const std::string& dll_name, uint64_t rva) {
+
+
+            for (const auto& func : loader.parsed_modules[dll_name]->exported_functions()) {
+                if (func.address() == rva) {
+                    return func.name();
+                }
+            
+        }
+        return "";
+    }
     void resolve_imports_For_dlls( const LIEF::PE::Binary& binary, const std::string& name) {
         for (const LIEF::PE::Import& import : binary.imports()) {
             const std::string& dll_name = import.name();
@@ -79,5 +98,6 @@ public:
                 std::cerr << "[!] DLL not parsed yet: " << dll_name << " — skipping resolve\n";
             }
         }
+
     }
 };

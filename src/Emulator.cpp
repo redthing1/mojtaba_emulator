@@ -2,6 +2,12 @@
 #include <unicorn/unicorn.h>
 #include <iostream>
 #include <LIEF/PE.hpp>
+#include <dbghelp.h>
+#include <windows.h>
+#include <string>
+#include "PELoader.cpp"
+
+
 
 #define STACK_ADDRESS 0x2000000
 #define STACK_SIZE (2 * 1024 * 1024)
@@ -18,7 +24,7 @@ struct BinaryInfo {
 class Emulator {
 
     std::vector<BinaryInfo> loaded_binaries;
-
+    PELoader peloader;
     uc_engine* uc;
 
 public:
@@ -128,15 +134,11 @@ public:
 
         auto& dllname = bin->name;
         auto Dll_rva = address - bin->base;
-        if (bin) {
-            std::cout << "Address belongs to binary: " << dllname << " RVa  : " << Dll_rva <<"\n";
 
-        }
-        else {
-            std::cout << "Address does not belong to any known binary\n";
-        }
+        std::cout << "FUNction name : " << emu->peloader.get_exported_function_name(dllname, Dll_rva) << "\n";
 
-        //emu->emu_ret();
+
+        emu->emu_ret();
 
     }
 
@@ -164,6 +166,7 @@ public:
         }
         return nullptr;
     }
+
      void emu_ret() {
          static const uint64_t ret_stub_addr = 0x1000;  // آدرس ثابت برای دستور RET
          static bool is_stub_mapped = false;
@@ -186,6 +189,38 @@ public:
          }
 
          uc_reg_write(this->uc, UC_X86_REG_RIP, &ret_stub_addr);
+     }
+
+     std::string get_function_name_from_pdb(const std::string& dll_path, uint64_t rva) {
+         HANDLE hProcess = GetCurrentProcess();
+
+         if (!SymInitialize(hProcess, NULL, FALSE)) {
+            // std::cerr << "SymInitialize failed\n";
+             return "";
+         }
+
+         DWORD64 baseAddress = SymLoadModuleEx(hProcess, NULL, dll_path.c_str(), NULL,
+             0, 0, NULL, 0);
+         if (baseAddress == 0) {
+            // std::cerr << "SymLoadModuleEx failed: " << GetLastError() << "\n";
+             return "";
+         }
+
+         uint64_t address = baseAddress + rva;
+
+         BYTE buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+         PSYMBOL_INFO pSymbol = reinterpret_cast<PSYMBOL_INFO>(buffer);
+         pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+         pSymbol->MaxNameLen = MAX_SYM_NAME;
+
+         DWORD64 displacement = 0;
+         if (SymFromAddr(hProcess, address, &displacement, pSymbol)) {
+             return std::string(pSymbol->Name);
+         }
+         else {
+             std::cerr << "SymFromAddr failed: " << GetLastError() << "\n";
+             return "";
+         }
      }
 
     void start_emulation(uint64_t start_addr) {
