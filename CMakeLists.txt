@@ -3,6 +3,8 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
+
+
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
   cmake_policy(SET CMP0141 NEW)
@@ -17,8 +19,8 @@ add_executable(emulator
     src/PELoader.cpp
     src/Disassembler.cpp
     src/ImportResolver.cpp
-    # اضافه کنید بقیه فایل‌های cpp پروژه‌تان
-)
+    
+ )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET emulator PROPERTY CXX_STANDARD 20)
@@ -33,4 +35,3 @@ target_link_libraries(emulator unicorn)
 
 add_subdirectory(deps/capstone)
 target_link_libraries(emulator capstone)
-

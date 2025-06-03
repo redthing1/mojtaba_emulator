@@ -25,7 +25,7 @@ public:
                 std::string full_path = "D:\\Project\\emulator\\Dlls\\" + dll_name;
 
                 if (!std::filesystem::exists(full_path)) {
-                    std::cerr << "[!] DLL not found: " << full_path << " — skipping\n";
+                  // std::cerr << "[!] DLL not found: " << dll_name << " — skipping FOR : "<< name <<"\n";
                     continue;
                 }
 
@@ -34,7 +34,7 @@ public:
                 try {
                     auto dll = loader.load_pe_binary(full_path);
                     uint64_t dll_base =  emo->reserve_memory( dll->optional_header().sizeof_image());
-                    emo->map_pe_binary( *dll, dll_base);
+                    emo->map_pe_binary( *dll, dll_base, dll_name);
                     loader.loaded_modules[dll_name] = dll_base;
                     loader.parsed_modules[dll_name] = std::move(dll);
                     std::cout << "[+] Loaded DLL at: 0x" << std::hex << dll_base << "\n";

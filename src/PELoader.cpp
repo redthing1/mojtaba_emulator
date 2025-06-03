@@ -6,6 +6,7 @@
 #include <memory>
 
 class PELoader {
+
 public:
     std::map<std::string, uint64_t> loaded_modules;
     std::map<std::string, std::unique_ptr<LIEF::PE::Binary>> parsed_modules;
