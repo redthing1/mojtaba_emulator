@@ -1,14 +1,17 @@
-﻿#include "PELoader.cpp"
-#include "Disassembler.cpp"
-#include "Emulator.cpp"
-#include "ImportResolver.cpp"
+﻿#include "../headers/PELoader.hpp"
+#include "../headers/Emulator.hpp"
+#include "../headers/ImportResolver.hpp"
 
+struct HookContext {
+    Emulator* emulator;
+    ImportResolver* resolver;
+};
 
 
 int main() {
     PELoader pe_loader;
     Emulator emulator;
-    Disassembler disassembler;
+
 
 
     const std::string pe_name = "helloworld.exe";
@@ -36,7 +39,8 @@ int main() {
     import_resolver.resolve_imports(*pe_loader.parsed_modules[pe_name], pe_name);
     import_resolver.resolve_imports_For_dlls(*pe_loader.parsed_modules[pe_name], pe_name);
 
-    emulator.setup_hooks();
+    HookContext hook_context{ &emulator, &import_resolver };
+    emulator.setup_hooks(&hook_context);
 
     std::cout << "[+] Emulation started AT ADDRESS : "<<entry_point<<"\n";
     emulator.start_emulation(entry_point);

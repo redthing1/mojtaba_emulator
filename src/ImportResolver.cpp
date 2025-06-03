@@ -1,21 +1,13 @@
-#include <LIEF/PE.hpp>
-#include <unicorn/unicorn.h>
-#include <iostream>
-#include "PELoader.cpp"
-#include "Emulator.cpp"
+#include "../headers/PELoader.hpp"
+#include "../headers/Emulator.hpp"
+#include "../headers/ImportResolver.hpp"
 
-class ImportResolver {
-    PELoader& loader;
-    uc_engine* uc;
-    Emulator* emo;
 
-public:
-
-    ImportResolver(uc_engine* unicorn, PELoader& pe_loader, Emulator* emulator)
+    ImportResolver::ImportResolver(uc_engine* unicorn, PELoader& pe_loader, Emulator* emulator)
         : uc(unicorn), loader(pe_loader), emo(emulator) {
     }
   
-    void resolve_imports(const LIEF::PE::Binary& binary, std::string name) {
+    void  ImportResolver::resolve_imports(const LIEF::PE::Binary& binary, std::string name) {
         for (LIEF::PE::Import& import : binary.imports()) {
             std::string dll_name = import.name();
 
@@ -68,15 +60,8 @@ public:
             }
         }
     }
-    std::string get_exported_function_name(const std::string& dll_name, uint64_t address) {
 
-        for (auto export_func : loader.parsed_modules[dll_name]->exported_functions()) {
-            std::cout << "Name : " << export_func.name();
-        }
-        return "";
-    }
-
-    std::string function_name_resoler(const std::string& dll_name, uint64_t rva) {
+    std::string  ImportResolver::function_name_resoler(const std::string& dll_name, uint64_t rva) {
 
 
             for (const auto& func : loader.parsed_modules[dll_name]->exported_functions()) {
@@ -87,7 +72,7 @@ public:
         }
         return "";
     }
-    void resolve_imports_For_dlls( const LIEF::PE::Binary& binary, const std::string& name) {
+    void  ImportResolver::resolve_imports_For_dlls( const LIEF::PE::Binary& binary, const std::string& name) {
         for (const LIEF::PE::Import& import : binary.imports()) {
             const std::string& dll_name = import.name();
 
@@ -100,4 +85,4 @@ public:
         }
 
     }
-};
+
