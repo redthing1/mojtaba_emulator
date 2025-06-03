@@ -171,6 +171,6 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     auto& dllname = bin->name;
     auto Dll_rva = address - bin->base;
 
-    std::cout << "Function name: " << emu->peloader.get_exported_function_name(dllname, Dll_rva) << "\n";
+    std::cout << "Function name: " << resolver->function_name_resoler(dllname, Dll_rva) << "\n";
     emu->emu_ret();
 }
