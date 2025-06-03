@@ -1,6 +1,7 @@
 ﻿#include "../headers/PELoader.hpp"
 #include "../headers/Emulator.hpp"
 #include "../headers/ImportResolver.hpp"
+#include "logger.cpp"
 
 struct HookContext {
     Emulator* emulator;
@@ -9,10 +10,9 @@ struct HookContext {
 
 
 int main() {
+
     PELoader pe_loader;
     Emulator emulator;
-
-
 
     const std::string pe_name = "helloworld.exe";
     const std::string pe_path = "D:\\Project\\emulator\\binary\\"+ pe_name;
@@ -41,11 +41,10 @@ int main() {
 
     HookContext hook_context{ &emulator, &import_resolver };
     emulator.setup_hooks(&hook_context);
-
-    std::cout << "[+] Emulation started AT ADDRESS : "<<entry_point<<"\n";
+    Logger::logf(Logger::Color::CYAN, "[+] Emulation started AT ADDRESS : 0x%llx", entry_point);
     emulator.start_emulation(entry_point);
 
-    std::cout << "[+] Emulation ENDED!" << '\n';
+    Logger::logf(Logger::Color::RED, "[-] Emulation ENDED .");
     getchar();
     return 0;
 }

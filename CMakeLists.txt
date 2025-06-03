@@ -20,7 +20,7 @@ add_executable(emulator
     src/Disassembler.cpp
     src/ImportResolver.cpp
     
- )
+  "src/Logger.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET emulator PROPERTY CXX_STANDARD 20)

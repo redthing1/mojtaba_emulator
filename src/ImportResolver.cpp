@@ -1,7 +1,7 @@
 #include "../headers/PELoader.hpp"
 #include "../headers/Emulator.hpp"
 #include "../headers/ImportResolver.hpp"
-
+#include "logger.cpp"
 
     ImportResolver::ImportResolver(uc_engine* unicorn, PELoader& pe_loader, Emulator* emulator)
         : uc(unicorn), loader(pe_loader), emo(emulator) {
@@ -22,7 +22,8 @@
                     continue;
                 }
 
-                std::cout << "[*] Loading DLL: " << dll_name << " For :" << name << "\n";
+
+                Logger::logf(Logger::Color::GRAY, "[*] Loading DLL: %s For : %s", dll_name.c_str(), name.c_str());
 
                 try {
                     auto dll = loader.load_pe_binary(full_path);
@@ -30,10 +31,10 @@
                     emo->map_pe_binary( *dll, dll_base, dll_name);
                     loader.loaded_modules[dll_name] = dll_base;
                     loader.add_to_parsed_moudal(dll_name,std::move(dll));
-                    std::cout << "[+] Loaded DLL at: 0x" << std::hex << dll_base << "\n";
+                    Logger::logf(Logger::Color::GRAY, "[+] Loaded DLL at: 0x%llx ", dll_base);
                 }
                 catch (...) {
-                    std::cerr << "[!] Failed to load DLL: " << dll_name << "\n";
+                    Logger::logf(Logger::Color::RED, "[!] Failed to load DLL: %s ", dll_name.c_str());
                     continue;
                 }
             }
@@ -49,7 +50,7 @@
                             uint64_t resolved_addr = dll_base + exported_func.address();
 
                             if (uc_mem_write(this->uc, loader.loaded_modules[name] + func.iat_address(), &resolved_addr, sizeof(resolved_addr)) != UC_ERR_OK) {
-                                std::cerr << "[!] Failed to patch IAT at 0x" << std::hex << func.iat_address() << "\n";
+                                Logger::logf(Logger::Color::RED, "[!] Failed to patch IAT at 0x%llx ", func.iat_address());
                             }
                             else {
                                 //  std::cout << "[+] Resolved import: " << func_name << " => 0x" << std::hex << resolved_addr << "\n";
@@ -63,14 +64,15 @@
 
     std::string  ImportResolver::function_name_resoler(const std::string& dll_name, uint64_t rva) {
 
-
             for (const auto& func : loader.parsed_modules[dll_name]->exported_functions()) {
                 if (func.address() == rva) {
                     return func.name();
                 }
             
         }
-        return "";
+           
+        return dll_name + " + 0x" + std::to_string(rva);
+
     }
     void  ImportResolver::resolve_imports_For_dlls( const LIEF::PE::Binary& binary, const std::string& name) {
         for (const LIEF::PE::Import& import : binary.imports()) {
@@ -80,7 +82,7 @@
                 resolve_imports(*loader.parsed_modules[dll_name], dll_name);
             }
             else {
-                std::cerr << "[!] DLL not parsed yet: " << dll_name << " — skipping resolve\n";
+                Logger::logf(Logger::Color::RED, "[!] DLL not parsed yet: %s — skipping resolve", dll_name.c_str());
             }
         }
 

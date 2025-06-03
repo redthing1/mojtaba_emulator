@@ -1,20 +1,15 @@
 #include "../headers/PELoader.hpp"
+#include "logger.cpp"
 
 std::unique_ptr<LIEF::PE::Binary> PELoader::load_pe_binary(const std::string& path) {
     auto binary = LIEF::PE::Parser::parse(path);
     if (!binary) {
-        std::cerr << "[!] Failed to parse PE file: " << path << "\n";
+        Logger::logf(Logger::Color::RED, "[!] Failed to parse PE file: %s", path);
         exit(1);
     }
     return binary;
 }
 
-std::string PELoader::get_exported_function_name(const std::string& dll_name, uint64_t address) {
-    for (const auto& export_func : parsed_modules[dll_name]->exported_functions()) {
-        std::cout << "Name: " << export_func.name() << "\n";
-    }
-    return "";
-}
 
 bool PELoader::dll_exists(const std::string& path) {
     return std::filesystem::exists(path);

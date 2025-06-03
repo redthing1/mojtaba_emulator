@@ -1,5 +1,6 @@
 ﻿#include "../headers/Emulator.hpp"
 #include "../headers/ImportResolver.hpp"
+#include "logger.cpp"
 
 struct HookContext {
     Emulator* emulator;
@@ -58,9 +59,8 @@ void Emulator::map_pe_binary(const LIEF::PE::Binary& binary, uint64_t load_base,
         if (!section.content().empty()) {
             uc_mem_write(uc, virt_addr, section.content().data(), section.content().size());
         }
+       // Logger::logf(Logger::Color::GRAY, "[+] Mapped section : %s at 0x%llx (size: %llx )", section.name().c_str(), virt_addr, virt_size);
 
-        std::cout << "[+] Mapped section " << section.name()
-            << " at 0x" << std::hex << virt_addr << " (size: " << virt_size << ")\n";
     }
 
     loaded_binaries.push_back(BinaryInfo{ name, image_base, total_size });
@@ -80,13 +80,13 @@ void Emulator::map_kuser_shared_data() {
 
 void Emulator::setup_hooks(void* context) {
     uc_hook trace;
-    printf("[*] Adding code hook...\n");
+    Logger::logf(Logger::Color::GREEN, "[*] Adding code hook... ");
     uc_err err = uc_hook_add(get_uc(), &trace, UC_HOOK_BLOCK, code_hook_cb, context, main_code_end, next_free_address);
     if (err != UC_ERR_OK) {
-        printf("[-] uc_hook_add failed: %s\n", uc_strerror(err));
+        Logger::logf(Logger::Color::RED, "[-] uc_hook_add failed: %s", uc_strerror(err));
     }
     else {
-        printf("[+] Hook added successfully\n");
+        Logger::logf(Logger::Color::GREEN, "[+] Hook added successfully", uc_strerror(err));
     }
 }
 
@@ -109,14 +109,14 @@ void Emulator::emu_ret() {
     if (!is_stub_mapped) {
         uc_err err = uc_mem_map(uc, ret_stub_addr, 0x1000, UC_PROT_ALL);
         if (err != UC_ERR_OK) {
-            std::cerr << "[!] Failed to map memory for ret stub: " << uc_strerror(err) << "\n";
+            Logger::logf(Logger::Color::RED, "[!] Failed to map memory for ret stub:  %s", uc_strerror(err));
             return;
         }
 
         uint8_t ret_instr = 0xC3;
         err = uc_mem_write(uc, ret_stub_addr, &ret_instr, 1);
         if (err != UC_ERR_OK) {
-            std::cerr << "[!] Failed to write ret instruction: " << uc_strerror(err) << "\n";
+            Logger::logf(Logger::Color::RED, "[!] Failed to write ret instruction: %s", uc_strerror(err));
             return;
         }
 
@@ -144,7 +144,7 @@ std::string Emulator::get_function_name_from_pdb(const std::string& dll_path, ui
         return std::string(pSymbol->Name);
     }
     else {
-        std::cerr << "SymFromAddr failed: " << GetLastError() << "\n";
+        Logger::logf(Logger::Color::RED, "SymFromAddr failed: %s", GetLastError());
         return "";
     }
 }
@@ -154,8 +154,8 @@ void Emulator::start_emulation(uint64_t start_addr) {
     if (err != UC_ERR_OK) {
         uint64_t rip = 0;
         uc_reg_read(uc, UC_X86_REG_RIP, &rip);
-        std::cerr << "[!] Emulation error at 0x" << std::hex << rip << "\n";
-        std::cerr << "[!] Error: " << uc_strerror(err) << "\n";
+        Logger::logf(Logger::Color::RED, "[!] Emulation error at 0x%llx", rip);
+        Logger::logf(Logger::Color::RED, "[!] Error: %s", uc_strerror(err));
     }
 }
 
@@ -171,6 +171,6 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     auto& dllname = bin->name;
     auto Dll_rva = address - bin->base;
 
-    std::cout << "[+] " << resolver->function_name_resoler(dllname, Dll_rva) << " Called . \n";
+    Logger::logf(Logger::Color::YELLOW, "[+] %s Called.", resolver->function_name_resoler(dllname, Dll_rva).c_str());
     emu->emu_ret();
 }
