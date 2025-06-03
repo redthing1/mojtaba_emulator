@@ -40,7 +40,7 @@ int main() {
     import_resolver.resolve_imports_For_dlls(*pe_loader.parsed_modules[pe_name], pe_name);
 
     HookContext hook_context{ &emulator, &import_resolver };
-    emulator.setup_hooks(&hook_context);
+    emulator.setup_hooks(&hook_context); // hook All the calls 
     Logger::logf(Logger::Color::CYAN, "[+] Emulation started AT ADDRESS : 0x%llx", entry_point);
     emulator.start_emulation(entry_point);
 
