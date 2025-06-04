@@ -266,6 +266,11 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     }
     return true;
 }
+ void Emulator::setup_tls() {
+
+
+ }
+
  bool Emulator::hook_mem_read_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address,
      int size, int64_t value, void* user_data) {
      HookContext* ctx = static_cast<HookContext*>(user_data);

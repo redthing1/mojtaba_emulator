@@ -29,20 +29,20 @@ int main() {
 
 
     emulator.setup_stack();
+    emulator.setup_tls();
     emulator.setup_TEB_PEB();
     emulator.map_kuser_shared_data();
 
-
-
     uint64_t entry_point = main_program_start_address + (pe_loader.parsed_modules[pe_name]->entrypoint()  - pe_loader.parsed_modules[pe_name]->imagebase());
     emulator.set_entry_point(entry_point);
+
 
     ImportResolver import_resolver(emulator.get_uc(), pe_loader, &emulator);
     import_resolver.resolve_imports(*pe_loader.parsed_modules[pe_name], pe_name);
     import_resolver.resolve_imports_For_dlls(*pe_loader.parsed_modules[pe_name], pe_name);
 
     HookContext hook_context{ &emulator, &import_resolver };
-    emulator.setup_hooks(&hook_context); // hook All the calls 
+    emulator.setup_hooks(&hook_context); 
     Logger::logf(Logger::Color::CYAN, "[+] Emulation started AT ADDRESS : 0x%llx", entry_point);
     emulator.start_emulation(entry_point);
 

@@ -108,7 +108,7 @@
                 resolve_imports(*loader.parsed_modules[dll_name], dll_name);
             }
             else {
-                Logger::logf(Logger::Color::RED, "[!] DLL not parsed yet: %s — skipping resolve", dll_name.c_str());
+                Logger::logf(Logger::Color::RED, "[!] DLL not parsed yet: %s -- skipping resolve", dll_name.c_str());
             }
         }
 
