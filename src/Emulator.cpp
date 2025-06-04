@@ -176,7 +176,7 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     Logger::logf(Logger::Color::YELLOW, "[+] %s Called.", function_name.c_str());
     
 
-    if (CallSimulatedFunction(dllname, function_name)) {
+    if (CallSimulatedFunction(dllname, function_name,*emu)) {
         emu->emu_ret();
     }
     else {
