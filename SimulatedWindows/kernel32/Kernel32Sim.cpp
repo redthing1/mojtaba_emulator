@@ -1,4 +1,4 @@
-#include "Kernel32Sim.h"
+﻿#include "Kernel32Sim.h"
 #include <chrono>
 #include <ctime>
 #include "../../src/Logger.cpp"
@@ -17,4 +17,29 @@ void Kernel32Sim::GetSystemTimeAsFileTime_s(Emulator& emu) {
 	uc_mem_write(emu.get_uc(), rcx, &Time_64,sizeof(Time_64));
 
 
+}
+void Kernel32Sim::GetCurrentThreadId_s(Emulator& emu) {
+
+	DWORD threadId32 = GetCurrentThreadId();                   // 32-bit
+	uint64_t threadId64 = static_cast<uint64_t>(threadId32);   
+	uc_reg_write(emu.get_uc(), UC_X86_REG_RAX, &threadId64);
+
+}
+void Kernel32Sim::GetCurrentProcessId_s(Emulator& emu) {
+
+	DWORD threadId32 = GetCurrentProcessId();                   // 32-bit
+	uint64_t threadId64 = static_cast<uint64_t>(threadId32);
+	uc_reg_write(emu.get_uc(), UC_X86_REG_RAX, &threadId64);
+
+}
+void Kernel32Sim::QueryPerformanceCounter_s(Emulator& emu) {
+	LARGE_INTEGER counter;
+	if (QueryPerformanceCounter(&counter)) {
+		uint64_t value = static_cast<uint64_t>(counter.QuadPart);
+		uc_reg_write(emu.get_uc(), UC_X86_REG_RAX, &value);
+	}
+	else {
+		uint64_t errorValue = 0;
+		uc_reg_write(emu.get_uc(), UC_X86_REG_RAX, &errorValue);
+	}
 }

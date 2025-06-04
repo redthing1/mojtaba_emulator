@@ -11,6 +11,18 @@ bool CallSimulatedFunction(const std::string& dllName, const std::string& functi
             Kernel32Sim::GetSystemTimeAsFileTime_s(emu);
             return true;
         }
+        if (functionName == "GetCurrentThreadId") {
+            Kernel32Sim::GetCurrentThreadId_s(emu);
+            return true;
+        }
+        if (functionName == "GetCurrentProcessId") {
+            Kernel32Sim::GetCurrentProcessId_s(emu);
+            return true;
+		}
+        if (functionName == "QueryPerformanceCounter") {
+            Kernel32Sim::QueryPerformanceCounter_s(emu);
+            return true;
+		}
 
         break;
 

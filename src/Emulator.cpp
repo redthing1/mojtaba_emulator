@@ -124,8 +124,8 @@ void Emulator::setup_hooks(void* context) {
     Logger::logf(Logger::Color::GREEN, "[*] Adding code hook... ");
 
     is_hooked(uc_hook_add(uc, &trace, UC_HOOK_BLOCK, code_hook_cb, context, main_code_end, next_free_address), "CODE HOOK");
-    is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ, hook_mem_read, context, 1, 0), "hook_mem_read");
-    is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ_UNMAPPED, hook_mem_read, context, 1, 0), "hook_mem_read_unMaped");
+    is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ, hook_mem_read, context, main_code_start, main_code_end), "hook_mem_read");
+    is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ_UNMAPPED, hook_mem_read, context, main_code_start, main_code_end), "hook_mem_read_unMaped");
 
 }
 void Emulator::is_hooked(uc_err err ,std::string HookName) {
@@ -226,7 +226,7 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
         emu->emu_ret();
     }
     else {
-        Logger::logf(Logger::Color::RED, "[-] Probelm emulation %s .", function_name.c_str());
+        Logger::logf(Logger::Color::RED, "[-] %s is unimplanted yet.", function_name.c_str());
     }
 
 
