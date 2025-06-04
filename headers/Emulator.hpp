@@ -81,7 +81,7 @@ public:
 
     static bool hook_mem_read_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data);
     
-    void setup_tls();
+    void setup_tls(LIEF::PE::Binary &bin, uint64_t start_addr);
 
     static void code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
 

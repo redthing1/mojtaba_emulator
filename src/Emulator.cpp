@@ -266,7 +266,21 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     }
     return true;
 }
- void Emulator::setup_tls() {
+ void Emulator::setup_tls(LIEF::PE::Binary &bin , uint64_t start_addr) {
+
+     if (bin.has_tls()) {
+         uint64_t address_of_tls = 0;  
+         if (uc_mem_read(uc, bin.tls()->addressof_callbacks(), &address_of_tls, sizeof(address_of_tls)) == UC_ERR_OK) {
+
+         uint64_t tls_callback_function_addr = start_addr + (address_of_tls - bin.imagebase());
+         Logger::logf(Logger::Color::YELLOW, "[+] Program has Tls at 0x%llx  ", address_of_tls);
+         
+         set_entry_point(tls_callback_function_addr);
+         start_emulation(tls_callback_function_addr);
+         }
+
+    }
+
 
 
  }
