@@ -119,27 +119,24 @@ void Emulator::setup_hooks(void* context) {
 
     uc_hook trace;
     uc_hook trace_mem_read;
-
+    uc_hook trace_mem_read_unmaped;
 
     Logger::logf(Logger::Color::GREEN, "[*] Adding code hook... ");
-    uc_err err = uc_hook_add(get_uc(), &trace, UC_HOOK_BLOCK, code_hook_cb, context, main_code_end, next_free_address);
+
+    is_hooked(uc_hook_add(uc, &trace, UC_HOOK_BLOCK, code_hook_cb, context, main_code_end, next_free_address), "CODE HOOK");
+    is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ, hook_mem_read, context, 1, 0), "hook_mem_read");
+    is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ_UNMAPPED, hook_mem_read, context, 1, 0), "hook_mem_read_unMaped");
+
+}
+void Emulator::is_hooked(uc_err err ,std::string HookName) {
+
     if (err != UC_ERR_OK) {
-        Logger::logf(Logger::Color::RED, "[-] uc_hook_add failed: %s", uc_strerror(err));
+        Logger::logf(Logger::Color::RED, "[-] %s failed: %s", HookName.c_str(), uc_strerror(err));
     }
     else {
-        Logger::logf(Logger::Color::GREEN, "[+] Hook added successfully", uc_strerror(err));
-    }
-
-
-    err = uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ, hook_mem_read, context, 1, 0);
-    if (err != UC_ERR_OK) {
-        Logger::logf(Logger::Color::RED, "[-] hook_mem_read failed: %s", uc_strerror(err));
-    }
-    else {
-      //  Logger::logf(Logger::Color::GREEN, "[+] hook_mem_read added successfully", uc_strerror(err));
+        Logger::logf(Logger::Color::GREEN, "[+] %s added successfully", HookName.c_str());
     }
 }
-
 void Emulator::set_entry_point(uint64_t entry_point) {
     uc_reg_write(uc, UC_X86_REG_RIP, &entry_point);
 }
@@ -243,7 +240,7 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     uint64_t rip;
     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
 
-    Logger::logf(Logger::Color::GREEN, "[+] Read from 0x%llx memory at 0x%llx ", address, rip);
+
     if (emu->isGsSegment(address)) {
         uint64_t real_addr = GS_BASE + address;
 
@@ -261,9 +258,30 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
             return false;
         }
 
-        Logger::logf(Logger::Color::GREEN, "[+] Read from GS segment at offset 0x%llx ", address);
+        Logger::logf(Logger::Color::GREEN, "[+] Read from GS segment at offset 0x%llx form : 0x%llx", address, rip);
 
+    }
+    else {
+    Logger::logf(Logger::Color::GREEN, "[+] Read from 0x%llx memory at 0x%llx ", address, rip);
     }
     return true;
 }
+ bool Emulator::hook_mem_read_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address,
+     int size, int64_t value, void* user_data) {
+     HookContext* ctx = static_cast<HookContext*>(user_data);
+     Emulator* emu = ctx->emulator;
+     ImportResolver* resolver = ctx->resolver;
 
+     uint64_t rip;
+     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+
+     if (emu->isGsSegment(address)) {
+
+         Logger::logf(Logger::Color::GREEN, "[+] Read from GS segment at offset 0x%llx form : 0x%llx it UnMaped ", address, rip);
+
+     }
+     else {
+         Logger::logf(Logger::Color::GREEN, "[+] Read from 0x%llx memory at 0x%llx  it UnMaped", address, rip);
+     }
+     return true;
+ }
