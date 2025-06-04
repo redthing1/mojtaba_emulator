@@ -1,5 +1,6 @@
 ﻿#include "../headers/Emulator.hpp"
 #include "../headers/ImportResolver.hpp"
+#include "../headers/SimulatedDispatcher.h"
 #include "logger.cpp"
 
 struct HookContext {
@@ -170,7 +171,17 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
 
     auto& dllname = bin->name;
     auto Dll_rva = address - bin->base;
+    std::string function_name =  resolver->function_name_resoler(dllname, Dll_rva);
 
-    Logger::logf(Logger::Color::YELLOW, "[+] %s Called.", resolver->function_name_resoler(dllname, Dll_rva).c_str());
-    //emu->emu_ret();
+    Logger::logf(Logger::Color::YELLOW, "[+] %s Called.", function_name.c_str());
+    
+
+    if (CallSimulatedFunction(dllname, function_name)) {
+        emu->emu_ret();
+    }
+    else {
+        Logger::logf(Logger::Color::RED, "[-] Probelm emulation %s .", function_name.c_str());
+    }
+
+
 }
