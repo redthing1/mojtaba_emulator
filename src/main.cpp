@@ -14,25 +14,27 @@ int main() {
     PELoader pe_loader;
     Emulator emulator;
 
+    uint64_t main_program_start_address = 0x140000000;
     const std::string pe_name = "helloworld.exe";
     const std::string pe_path = "D:\\Project\\emulator\\binary\\"+ pe_name;
 
     auto binary = pe_loader.load_pe_binary(pe_path);
 
  
-    emulator.map_pe_binary(*binary, 0x140000000,pe_name);
-    emulator.set_code_bounds(0x140000000,emulator.next_free_address, pe_name);
+    emulator.map_pe_binary(*binary, main_program_start_address,pe_name);
+    emulator.set_code_bounds(main_program_start_address,emulator.next_free_address, pe_name);
 
-    pe_loader.loaded_modules[pe_name] = 0x140000000;
+    pe_loader.loaded_modules[pe_name] = main_program_start_address;
     pe_loader.parsed_modules[pe_name] = std::move(binary);
 
 
     emulator.setup_stack();
+    emulator.setup_TEB_PEB();
     emulator.map_kuser_shared_data();
 
 
 
-    uint64_t entry_point = pe_loader.parsed_modules[pe_name]->entrypoint() ;
+    uint64_t entry_point = main_program_start_address + (pe_loader.parsed_modules[pe_name]->entrypoint()  - pe_loader.parsed_modules[pe_name]->imagebase());
     emulator.set_entry_point(entry_point);
 
     ImportResolver import_resolver(emulator.get_uc(), pe_loader, &emulator);

@@ -3,6 +3,12 @@
 #include "../headers/SimulatedDispatcher.h"
 #include "logger.cpp"
 
+#ifdef _M_X64
+PNT_TIB GetTeb() {
+    return (PNT_TIB)__readgsqword(0x30);
+}
+#endif
+
 struct HookContext {
     Emulator* emulator;
     ImportResolver* resolver;
@@ -41,6 +47,9 @@ uint64_t Emulator::reserve_memory(size_t size, int perms) {
     next_free_address += size;
     return addr;
 }
+bool Emulator::isGsSegment(uint64_t addr) {
+    return addr <= 0xFFFF;
+}
 
 void Emulator::map_pe_binary(const LIEF::PE::Binary& binary, uint64_t load_base, std::string name) {
     uint64_t image_base = load_base ? load_base : next_free_address;
@@ -72,7 +81,34 @@ void Emulator::setup_stack() {
     uint64_t rsp = STACK_ADDRESS + STACK_SIZE - 0x10000;
     uc_reg_write(uc, UC_X86_REG_RSP, &rsp);
 }
+void Emulator::CopyTebPebToBuffer(uint8_t* tebBuf, size_t tebSize, uint8_t* pebBuf, size_t pebSize) {
+#ifdef _M_X64
+    PNT_TIB teb = (PNT_TIB)__readgsqword(0x30);
+    void* peb = *(void**)((uint8_t*)teb + 0x60);
 
+    memcpy(tebBuf, teb, min(tebSize, size_t(0x1000)));
+    memcpy(pebBuf, peb, min(pebSize, size_t(0x1000)));
+#endif
+}
+PVOID Emulator::GetPebFromTeb() {
+    auto teb = GetTeb();
+    return *(PVOID*)((BYTE*)teb + 0x60);  
+}
+void Emulator::setup_TEB_PEB() {
+
+    uc_mem_map(uc, GS_BASE, 2 * 1024 * 1024, UC_PROT_ALL);
+
+    const size_t tebSize = 0x1000;
+    const size_t pebSize = 0x1000;
+
+    uint8_t tebBuf[tebSize] = {};
+    uint8_t pebBuf[pebSize] = {};
+
+
+    CopyTebPebToBuffer(tebBuf, tebSize, pebBuf, pebSize);
+    uc_mem_write(uc, 0x7FFDF0000000, tebBuf, tebSize);
+    uc_mem_write(uc, 0x7FFDF0001000, pebBuf, pebSize);
+}
 void Emulator::map_kuser_shared_data() {
     uc_mem_map(uc, KUSER_SHARED_DATA_ADDRESS, KUSER_SHARED_DATA_SIZE, UC_PROT_READ);
     void* shared_data = reinterpret_cast<void*>(KUSER_SHARED_DATA_ADDRESS);
@@ -80,7 +116,11 @@ void Emulator::map_kuser_shared_data() {
 }
 
 void Emulator::setup_hooks(void* context) {
+
     uc_hook trace;
+    uc_hook trace_mem_read;
+
+
     Logger::logf(Logger::Color::GREEN, "[*] Adding code hook... ");
     uc_err err = uc_hook_add(get_uc(), &trace, UC_HOOK_BLOCK, code_hook_cb, context, main_code_end, next_free_address);
     if (err != UC_ERR_OK) {
@@ -88,6 +128,15 @@ void Emulator::setup_hooks(void* context) {
     }
     else {
         Logger::logf(Logger::Color::GREEN, "[+] Hook added successfully", uc_strerror(err));
+    }
+
+
+    err = uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ, hook_mem_read, context, 1, 0);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] hook_mem_read failed: %s", uc_strerror(err));
+    }
+    else {
+      //  Logger::logf(Logger::Color::GREEN, "[+] hook_mem_read added successfully", uc_strerror(err));
     }
 }
 
@@ -185,3 +234,33 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
 
 
 }
+ bool Emulator::hook_mem_read(uc_engine* uc, uc_mem_type type, uint64_t address,
+    int size, int64_t value, void* user_data) {
+    HookContext* ctx = static_cast<HookContext*>(user_data);
+    Emulator* emu = ctx->emulator;
+    ImportResolver* resolver = ctx->resolver;
+
+    Logger::logf(Logger::Color::GREEN, "[+] Read from memory at 0x%llx ", address);
+    if (emu->isGsSegment(address)) {
+        uint64_t real_addr = GS_BASE + address;
+
+        uint8_t buf[16] = { 0 };
+        if (size > (int)sizeof(buf)) {
+            Logger::logf(Logger::Color::RED, "[-] Size too big in mem_read hook .");
+
+            return false;
+        }
+
+
+        uc_err err = uc_mem_read(uc, real_addr, buf, size);
+        if (err != UC_ERR_OK) {
+            Logger::logf(Logger::Color::RED, "[-] Failed to read memory at GS base adjusted addr: 0x%llx ", real_addr);
+            return false;
+        }
+
+        Logger::logf(Logger::Color::GREEN, "[+] Read from GS segment at offset 0x%llx ", address);
+
+    }
+    return true;
+}
+

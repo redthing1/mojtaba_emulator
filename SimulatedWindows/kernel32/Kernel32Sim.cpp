@@ -15,7 +15,6 @@ void Kernel32Sim::GetSystemTimeAsFileTime_s(Emulator& emu) {
 	uint64_t rcx = 0 ;
 	uc_reg_read(emu.get_uc(), UC_X86_REG_RCX, &rcx);
 	uc_mem_write(emu.get_uc(), rcx, &Time_64,sizeof(Time_64));
-	uc_mem_read(emu.get_uc(), rcx, &Time_64, sizeof(Time_64));
-	Logger::logf(Logger::Color::YELLOW, "[+] time was : 0x%llx", Time_64);
+
 
 }
