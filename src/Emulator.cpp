@@ -240,7 +240,10 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     Emulator* emu = ctx->emulator;
     ImportResolver* resolver = ctx->resolver;
 
-    Logger::logf(Logger::Color::GREEN, "[+] Read from memory at 0x%llx ", address);
+    uint64_t rip;
+    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+
+    Logger::logf(Logger::Color::GREEN, "[+] Read from 0x%llx memory at 0x%llx ", address, rip);
     if (emu->isGsSegment(address)) {
         uint64_t real_addr = GS_BASE + address;
 
