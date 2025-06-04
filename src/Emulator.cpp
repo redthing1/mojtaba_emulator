@@ -1,6 +1,6 @@
 ﻿#include "../headers/Emulator.hpp"
 #include "../headers/ImportResolver.hpp"
-#include "../headers/SimulatedDispatcher.h"
+#include "../headers/SimulatedDispatcher.hpp"
 #include "logger.cpp"
 
 #ifdef _M_X64

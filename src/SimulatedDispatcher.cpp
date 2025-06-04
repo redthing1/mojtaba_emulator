@@ -1,5 +1,6 @@
-#include "../headers/SimulatedDispatcher.h"
-#include "../SimulatedWindows/kernel32/Kernel32Sim.h"
+#include "../headers/SimulatedDispatcher.hpp"
+#include "../SimulatedWindows/kernel32/Kernel32Sim.hpp"
+#include "../SimulatedWindows/user32/user32Sim.hpp"
 #include "../headers/DllEnum.h"
 
 bool CallSimulatedFunction(const std::string& dllName, const std::string& functionName, Emulator& emu) {
@@ -27,7 +28,10 @@ bool CallSimulatedFunction(const std::string& dllName, const std::string& functi
         break;
 
     case DllId::User32:
-
+        if (functionName == "MessageBoxW") {
+            user32Sim::MessageBoxW_s(emu);
+            return true;
+        }
         break;
 
     case DllId::Gdi32:

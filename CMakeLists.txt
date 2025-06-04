@@ -19,7 +19,13 @@ add_executable(emulator
     src/PELoader.cpp
     src/Disassembler.cpp
     src/ImportResolver.cpp
-  "src/Logger.cpp" "SimulatedWindows/kernel32/Kernel32Sim.cpp" "headers/SimulatedDispatcher.h" "src/SimulatedDispatcher.cpp")
+    "src/Logger.cpp" 
+    "src/SimulatedDispatcher.cpp"
+    "headers/SimulatedDispatcher.hpp" 
+    "SimulatedWindows/user32/user32Sim.cpp"
+    "SimulatedWindows/user32/user32Sim.hpp"
+    "SimulatedWindows/kernel32/Kernel32Sim.cpp"
+    "SimulatedWindows/kernel32/Kernel32Sim.hpp" )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET emulator PROPERTY CXX_STANDARD 20)
