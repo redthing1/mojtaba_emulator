@@ -35,6 +35,7 @@ void Kernel32Sim::GetCurrentProcessId_s(Emulator& emu) {
 
 void Kernel32Sim::GetConsoleWindow_s(Emulator& emu) {
 	HWND hwnd = GetConsoleWindow();
+
 	uint64_t hwnd64 = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(hwnd));
 	uc_reg_write(emu.get_uc(), UC_X86_REG_RAX, &hwnd64);
 }

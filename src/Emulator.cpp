@@ -199,6 +199,9 @@ std::string Emulator::get_function_name_from_pdb(const std::string& dll_path, ui
 }
 
 void Emulator::start_emulation(uint64_t start_addr) {
+
+    HMODULE hModule = GetModuleHandle(NULL);
+    uc_reg_read(uc, UC_X86_REG_RCX, &hModule);
     auto err = uc_emu_start(uc, start_addr, 0, 0, 0);
     if (err != UC_ERR_OK) {
         uint64_t rip = 0;
