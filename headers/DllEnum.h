@@ -5,6 +5,7 @@ enum class DllId {
     User32,
     Gdi32,
     KERNELBASE,
+    Ucrtbase,
     Unknown
 };
 
@@ -14,5 +15,6 @@ inline DllId GetDllIdFromString(const std::string& dllName) {
     if (dllName == "USER32.dll") return DllId::User32;
     if (dllName == "KERNELBASE.dll") return DllId::KERNELBASE;
     if (dllName == "gdi32.dll") return DllId::Gdi32;
+    if (dllName == "ucrtbase.dll") return DllId::Ucrtbase;
     return DllId::Unknown;
 }

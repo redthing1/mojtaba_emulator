@@ -79,6 +79,8 @@ public:
 
     static bool hook_mem_read(uc_engine* uc, uc_mem_type type, uint64_t address,int size, int64_t value, void* user_data);
 
+    static bool hook_mem_fetch_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data);
+
     static bool hook_mem_read_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data);
     
     void setup_tls(LIEF::PE::Binary &bin, uint64_t start_addr);
@@ -86,4 +88,6 @@ public:
     static void code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
 
     void is_hooked(uc_err err, std::string HookName);
+
+    uint64_t Read_Pointer_reg(uc_x86_reg reg);
 };

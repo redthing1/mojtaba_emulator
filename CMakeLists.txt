@@ -25,7 +25,7 @@ add_executable(emulator
     "SimulatedWindows/user32/user32Sim.cpp"
     "SimulatedWindows/user32/user32Sim.hpp"
     "SimulatedWindows/kernel32/Kernel32Sim.cpp"
-    "SimulatedWindows/kernel32/Kernel32Sim.hpp" )
+    "SimulatedWindows/kernel32/Kernel32Sim.hpp"  "SimulatedWindows/Ucrtbase/ucrtbase32Sim.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET emulator PROPERTY CXX_STANDARD 20)

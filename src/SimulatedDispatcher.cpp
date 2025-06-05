@@ -1,6 +1,7 @@
 #include "../headers/SimulatedDispatcher.hpp"
 #include "../SimulatedWindows/kernel32/Kernel32Sim.hpp"
 #include "../SimulatedWindows/user32/user32Sim.hpp"
+#include "../SimulatedWindows/Ucrtbase/ucrtbase32Sim.hpp"
 #include "../headers/DllEnum.h"
 
 bool CallSimulatedFunction(const std::string& dllName, const std::string& functionName, Emulator& emu) {
@@ -24,7 +25,11 @@ bool CallSimulatedFunction(const std::string& dllName, const std::string& functi
             Kernel32Sim::QueryPerformanceCounter_s(emu);
             return true;
 		}
-
+        if (functionName == "GetConsoleWindow") {
+            Kernel32Sim::GetConsoleWindow_s(emu);
+            return true;
+        }
+        
         break;
 
     case DllId::User32:
@@ -33,7 +38,12 @@ bool CallSimulatedFunction(const std::string& dllName, const std::string& functi
             return true;
         }
         break;
-
+    case DllId::Ucrtbase:
+        if (functionName == "__stdio_common_vswprintf_s") {
+            ucrtbase32Sim::__stdio_common_vswprintf_s_s(emu);
+            return true;
+        }
+        break;
     case DllId::Gdi32:
 
         break;

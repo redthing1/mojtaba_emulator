@@ -28,7 +28,7 @@ int main() {
     pe_loader.loaded_modules[pe_name] = main_program_start_address;
     pe_loader.parsed_modules[pe_name] = std::move(binary);
 
-    ImportResolver import_resolver(emulator.get_uc(), pe_loader, &emulator);
+    ImportResolver import_resolver(emulator.get_uc(), pe_loader, &emulator, "C:\\Windows\\System32\\");
     import_resolver.resolve_imports(*pe_loader.parsed_modules[pe_name], pe_name);
     import_resolver.resolve_imports_For_dlls(*pe_loader.parsed_modules[pe_name], pe_name);
 
