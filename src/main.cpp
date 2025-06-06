@@ -43,8 +43,8 @@ int main() {
     emulator.setup_hooks(&hook_context); 
 
     emulator.setup_stack();
-    emulator.setup_tls(*pe_loader.parsed_modules[pe_name], main_program_start_address);
     emulator.setup_TEB_PEB();
+    emulator.setup_tls(*pe_loader.parsed_modules[pe_name], main_program_start_address);
     emulator.map_kuser_shared_data();
 
 

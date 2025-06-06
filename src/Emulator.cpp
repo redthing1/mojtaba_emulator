@@ -49,7 +49,8 @@ uint64_t Emulator::reserve_memory(size_t size, int perms) {
     return addr;
 }
 bool Emulator::isGsSegment(uint64_t addr) {
-    return addr <= 0xFFFF;
+
+    return (addr > GS_BASE && addr <= GS_BASE + GS_size);
 }
 
 void Emulator::map_pe_binary(const LIEF::PE::Binary& binary, uint64_t load_base, std::string name) {
@@ -97,18 +98,74 @@ PVOID Emulator::GetPebFromTeb() {
 }
 void Emulator::setup_TEB_PEB() {
 
-    uc_mem_map(uc, GS_BASE, 2 * 1024 * 1024, UC_PROT_ALL);
+    uc_err err = uc_mem_map(uc, GS_BASE, GS_size, UC_PROT_ALL);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to map GS segment at 0x%llx", GS_BASE);
+        return;
+	}
+     err = uc_reg_write(uc, UC_X86_REG_GS_BASE, &GS_BASE);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to write GS reg : 0x%llx", GS_BASE);
+        return;
+    }
 
-    const size_t tebSize = 0x1000;
-    const size_t pebSize = 0x1000;
+    uint64_t teb_addr = GS_BASE + 0x00000;
+    uint64_t peb_addr = GS_BASE + 0x1000;
 
-    uint8_t tebBuf[tebSize] = {};
-    uint8_t pebBuf[pebSize] = {};
+    auto peb_data = build_PEB();
+    auto teb_data = build_TEB(teb_addr, peb_addr);
 
 
-    CopyTebPebToBuffer(tebBuf, tebSize, pebBuf, pebSize);
-    uc_mem_write(uc, 0x7FFDF0000000, tebBuf, tebSize);
-    uc_mem_write(uc, 0x7FFDF0001000, pebBuf, pebSize);
+    err = uc_mem_map(uc, teb_addr, 1 * 1024 * 1024, UC_PROT_ALL);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to map memory at 0x0 for TEB/PEB");
+    }
+
+    err = uc_mem_write(uc, teb_addr, teb_data.data(), teb_data.size());
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to write TEB");
+    }
+
+    err = uc_mem_write(uc, peb_addr, peb_data.data(), peb_data.size());
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to write PEB");
+    }
+
+
+}
+
+std::vector<uint8_t> Emulator::build_PEB() {
+    
+    peb.BeingDebugged = 0;
+    peb.ImageBaseAddress = (void*)0x400000;
+    peb.NumberOfProcessors = 4;
+    peb.NtGlobalFlag = 0;
+    peb.OSMajorVersion = 10;
+    peb.OSMinorVersion = 0;
+    peb.OSBuildNumber = 22000;
+    peb.OSPlatformId = 2;
+    peb.ProcessHeap = (void*)0x500000;
+    peb.ProcessParameters = (void*)0x300000;
+
+    std::vector<uint8_t> buffer(sizeof(PEB));
+    memcpy(buffer.data(), &peb, sizeof(PEB));
+    return buffer;
+}
+
+std::vector<uint8_t> Emulator::build_TEB(uint64_t teb_addr, uint64_t peb_addr) {
+
+    teb.ProcessEnvironmentBlock = (PEB*)peb_addr;
+    teb.ClientId.UniqueProcess = (void*)1234;
+    teb.ClientId.UniqueThread = (void*)5678;
+    teb.LastErrorValue = 0;
+    teb.CurrentLocale = 0x409;
+
+    teb.NtTib.ExceptionList = nullptr;
+    teb.NtTib.Self = (void*)teb_addr;
+
+    std::vector<uint8_t> buffer(sizeof(TEB));
+    memcpy(buffer.data(), &teb, sizeof(TEB));
+    return buffer;
 }
 void Emulator::map_kuser_shared_data() {
     uc_mem_map(uc, KUSER_SHARED_DATA_ADDRESS, KUSER_SHARED_DATA_SIZE, UC_PROT_READ);
@@ -152,7 +209,7 @@ BinaryInfo* Emulator::find_binary_by_address(uint64_t address) {
 }
 
 void Emulator::emu_ret() {
-    static const uint64_t ret_stub_addr = 0x1000;
+    static const uint64_t ret_stub_addr = 0x100000;
     static bool is_stub_mapped = false;
 
     if (!is_stub_mapped) {
@@ -267,25 +324,25 @@ bool Emulator::hook_mem_read(uc_engine* uc, uc_mem_type type, uint64_t address,
 
     BinaryInfo* lib_name = emu->find_binary_by_address(rip);
     if (emu->isGsSegment(address)) {
-        uint64_t real_addr = GS_BASE + address;
-
-        uint8_t buf[16] = { 0 };
-        if (size > (int)sizeof(buf)) {
-            Logger::logf(Logger::Color::RED, "[-] Size too big in mem_read hook.");
-            return false;
-        }
-
-        uc_err err = uc_mem_read(uc, real_addr, buf, size);
-        if (err != UC_ERR_OK) {
-            Logger::logf(Logger::Color::RED, "[-] Failed to read memory at GS:0x%llx (real: 0x%llx)", address, real_addr);
-            return false;
-        }
 
         const char* field_name = nullptr;
-        auto it = gs_offset_names.find(address);
-        if (it != gs_offset_names.end()) {
+
+        if (address > emu->peb_addr) {
+        auto it = gs_peb_offset_names.find(address);
+        if (it != gs_peb_offset_names.end()) {
             field_name = it->second;
         }
+        }
+        else {
+
+            auto it = gs_teb_offset_names.find(address);
+            if (it != gs_teb_offset_names.end()) {
+                field_name = it->second;
+            }
+
+        }
+
+
 
         if (field_name) {
             Logger::logf(Logger::Color::CYAN,
