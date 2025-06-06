@@ -6,6 +6,16 @@
 class Emulator;  // <== forward declaration
 
 class ImportResolver {
+     std::unordered_map<std::string, std::string> api_set_redirects = {
+    {"api-ms-win-crt-", "ucrtbase.dll"},
+    {"api-ms-win-core-processthreads", "kernel32.dll"},
+    {"api-ms-win-core-", "kernelbase.dll"},
+    {"api-ms-win-eventing-", "msvcp_win.dll" },
+    {"api-ms-win-crt-stdio-", "ucrtbase.dll" },
+    {"api-ms-win-security-", "win32u.dll" },
+    {"api-ms-win-crt-runtime-", "win32u.dll" },
+    {"api-ms-win-stateseparation-", "gdi32full.dll" }
+    };
     class PELoader& loader;
     Emulator* emo;
     uc_engine* uc;

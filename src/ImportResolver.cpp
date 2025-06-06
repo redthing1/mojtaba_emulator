@@ -8,11 +8,7 @@
     }
 
     void ImportResolver::resolve_imports(const LIEF::PE::Binary& binary, std::string name ) {
-        static std::unordered_map<std::string, std::string> api_set_redirects = {
-            {"api-ms-win-crt-", "ucrtbase.dll"},
-            {"api-ms-win-core-processthreads", "kernel32.dll"},
-            {"api-ms-win-core-", "kernelbase.dll"}
-        };
+
 
         for (const std::string& import : binary.imported_libraries()) {
             std::string display_name = import;
@@ -117,7 +113,7 @@
                             for (const auto& exported_func : mod_exports) {
                                 if (func_name == exported_func.name()) {
                                     resolved_addr = mod_base + exported_func.address();
-                                    Logger::logf(Logger::Color::YELLOW, "[~] Fallback resolved: %s from %s", func_name.c_str(), mod_name.c_str());
+                                   // Logger::logf(Logger::Color::YELLOW, "[~] Fallback resolved: %s from %s", func_name.c_str(), mod_name.c_str());
                                     break;
                                 }
                             }
@@ -166,14 +162,21 @@
                     return func.name();
                 }
             
-        }
+         }
            
-        return dll_name + " + 0x" + std::to_string(rva);
+        return NULL;
 
     }
     void  ImportResolver::resolve_imports_For_dlls( const LIEF::PE::Binary& binary, const std::string& name) {
         for (const LIEF::PE::Import& import : binary.imports()) {
-            const std::string& dll_name = import.name();
+             std::string dll_name = import.name();
+
+            for (const auto& [prefix, redirect] : api_set_redirects) {
+                if (dll_name.rfind(prefix, 0) == 0) {
+                    dll_name = redirect;
+                    break;
+                }
+            }
 
             if (loader.parsed_modules.find(dll_name) != loader.parsed_modules.end()) {
                 resolve_imports(*loader.parsed_modules[dll_name], dll_name);

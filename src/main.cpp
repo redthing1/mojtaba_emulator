@@ -48,6 +48,7 @@ int main() {
     emulator.map_kuser_shared_data();
 
 
+
     Logger::logf(Logger::Color::CYAN, "[+] Emulation started AT ADDRESS : 0x%llx", entry_point);
     emulator.start_emulation(entry_point);
 

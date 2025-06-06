@@ -116,10 +116,6 @@ void Emulator::setup_TEB_PEB() {
     auto teb_data = build_TEB(teb_addr, peb_addr);
 
 
-    err = uc_mem_map(uc, teb_addr, 1 * 1024 * 1024, UC_PROT_ALL);
-    if (err != UC_ERR_OK) {
-        Logger::logf(Logger::Color::RED, "[-] Failed to map memory at 0x0 for TEB/PEB");
-    }
 
     err = uc_mem_write(uc, teb_addr, teb_data.data(), teb_data.size());
     if (err != UC_ERR_OK) {
@@ -160,7 +156,10 @@ std::vector<uint8_t> Emulator::build_TEB(uint64_t teb_addr, uint64_t peb_addr) {
     teb.LastErrorValue = 0;
     teb.CurrentLocale = 0x409;
 
+
     teb.NtTib.ExceptionList = nullptr;
+    teb.NtTib.StackBase = (void*)STACK_ADDRESS;
+    teb.NtTib.StackLimit = (void*)(STACK_ADDRESS + STACK_SIZE);
     teb.NtTib.Self = (void*)teb_addr;
 
     std::vector<uint8_t> buffer(sizeof(TEB));
@@ -281,22 +280,24 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     auto Dll_rva = address - bin->base;
     std::string function_name =  resolver->function_name_resoler(dllname, Dll_rva);
 
-    Logger::logf(Logger::Color::YELLOW, "[+] %s Called from %s and return to : 0x%llx", function_name.c_str() , dllname.c_str(),emu->Read_Pointer_reg(UC_X86_REG_RSP));
-    
+    if (!function_name.empty()) {
+    Logger::logf(Logger::Color::YELLOW, "[+] %s Called from %s and return to : 0x%llx", function_name.c_str(), dllname.c_str(), emu->Read_Pointer_reg(UC_X86_REG_RSP));
 
+    
 
             if (CallSimulatedFunction(dllname, function_name,*emu)) {
  
+
 
                 emu->emu_ret();
         
 
             }
             else {
-             //   Logger::logf(Logger::Color::RED, "[-] %s is unimplanted yet.", function_name.c_str());
+               Logger::logf(Logger::Color::RED, "[-] %s is unimplanted yet.", function_name.c_str());
             }
     
-      
+      }
 
 
 }
