@@ -9,7 +9,7 @@
 #include <vector>
 #include <winternl.h>
 #include "PELoader.hpp"
-
+#include "../src/Disassembler.cpp"
 
 #define STACK_ADDRESS 0x2000000
 #define STACK_SIZE (2 * 1024 * 1024)
@@ -20,6 +20,7 @@
 constexpr uint64_t GS_BASE = 0x0;
 constexpr uint64_t GS_size = 1 * 1024 * 1024;
 
+using X86RegisterState = std::map<uc_x86_reg, uint64_t>;
 
 struct BinaryInfo {
     std::string name;
@@ -182,10 +183,12 @@ class Emulator {
     uint64_t teb_addr;
     uint64_t peb_addr;
 
+	Disassembler disassembler;
 
     std::vector<BinaryInfo> loaded_binaries;
     PELoader peloader;
     uc_engine* uc;
+
 
 public:
     uint64_t main_code_start = 0;
@@ -212,6 +215,10 @@ public:
 
     void map_kuser_shared_data();
 
+    void restore_registers(uc_engine* uc, const X86RegisterState& state);
+
+    X86RegisterState save_registers(uc_engine* uc);
+
     std::vector<uint8_t> build_TEB(uint64_t teb_addr, uint64_t peb_addr);
 
     std::vector<uint8_t> build_PEB();
@@ -237,6 +244,8 @@ public:
     static bool hook_mem_read(uc_engine* uc, uc_mem_type type, uint64_t address,int size, int64_t value, void* user_data);
 
     static bool hook_mem_fetch_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data);
+
+    static void code_hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
 
     static bool hook_mem_read_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data);
     

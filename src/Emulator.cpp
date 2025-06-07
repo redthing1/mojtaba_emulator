@@ -4,6 +4,7 @@
 #include "logger.cpp"
 #include "teb_peb_offsets.cpp"
 
+
 #ifdef _M_X64
 PNT_TIB GetTeb() {
     return (PNT_TIB)__readgsqword(0x30);
@@ -175,6 +176,7 @@ void Emulator::map_kuser_shared_data() {
 void Emulator::setup_hooks(void* context) {
 
     uc_hook trace;
+    uc_hook trace_code;
     uc_hook trace_mem_read;
     uc_hook trace_mem_read_unmaped;
 
@@ -184,6 +186,8 @@ void Emulator::setup_hooks(void* context) {
     is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ, hook_mem_read, context, 1, 0), "Hook_Mem_Read");
     is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_READ_UNMAPPED, hook_mem_read, context, 1, 0), "Hook_Mem_Read_UnMaped");
     is_hooked(uc_hook_add(uc, &trace_mem_read, UC_HOOK_MEM_FETCH_UNMAPPED, hook_mem_fetch_unmaped, context, 1, 0), "Hook_Mem_Fetch_unMaped");
+	// only for debug purpose
+   // is_hooked(uc_hook_add(uc, &trace_code, UC_HOOK_CODE, code_hook_code, context, main_code_end, next_free_address), "Hook_CODE");
 
 }
 void Emulator::is_hooked(uc_err err ,std::string HookName) {
@@ -280,7 +284,10 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
     auto Dll_rva = address - bin->base;
     std::string function_name =  resolver->function_name_resoler(dllname, Dll_rva);
 
-    if (!function_name.empty()) {
+    if (function_name != "") {
+
+ 
+
     Logger::logf(Logger::Color::YELLOW, "[+] %s Called from %s and return to : 0x%llx", function_name.c_str(), dllname.c_str(), emu->Read_Pointer_reg(UC_X86_REG_RSP));
 
     
@@ -296,11 +303,25 @@ void Emulator::code_hook_cb(uc_engine* uc, uint64_t address, uint32_t size, void
             else {
                Logger::logf(Logger::Color::RED, "[-] %s is unimplanted yet.", function_name.c_str());
             }
+       }
     
-      }
+
 
 
 }
+
+void Emulator::code_hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
+    HookContext* ctx = static_cast<HookContext*>(user_data);
+    Emulator* emu = ctx->emulator;
+    ImportResolver* resolver = ctx->resolver;
+    uint64_t rip;
+
+	emu->disassembler.disassemble_at(uc, address);
+    emu->disassembler.print_registers(uc);
+
+
+}
+
 bool Emulator::hook_mem_fetch_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address,
     int size, int64_t value, void* user_data) {
         HookContext* ctx = static_cast<HookContext*>(user_data);
@@ -309,7 +330,8 @@ bool Emulator::hook_mem_fetch_unmaped(uc_engine* uc, uc_mem_type type, uint64_t 
 
     uint64_t rip;
     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
-    Logger::logf(Logger::Color::GREEN, "[+] Fetch from 0x%llx memory at 0x%llx and want return to : 0x%llx", address, rip, emu->Read_Pointer_reg(UC_X86_REG_RSP));
+	BinaryInfo* lib_name = emu->find_binary_by_address(emu->Read_Pointer_reg(UC_X86_REG_RSP));
+    Logger::logf(Logger::Color::GREEN, "[+] Fetch from 0x%llx memory at 0x%llx and want return to : %s +  0x%llx", address, rip, lib_name->name.c_str(), emu->Read_Pointer_reg(UC_X86_REG_RSP) - lib_name->base);
 
     return false;
 }
@@ -406,6 +428,34 @@ bool Emulator::hook_mem_read(uc_engine* uc, uc_mem_type type, uint64_t address,
   //   Logger::logf(Logger::Color::GREEN, "[+] Read pointer: reg -> 0x%llx -> value = 0x%llx", point, value);
      return value;
  }
+
+ void Emulator::restore_registers(uc_engine* uc, const X86RegisterState& state) {
+     for (const auto& [reg, value] : state) {
+         uc_reg_write(uc, reg, &value);
+     }
+ }
+
+ X86RegisterState Emulator::save_registers(uc_engine* uc) {
+     X86RegisterState state;
+
+
+     uc_x86_reg regs[] = {
+         UC_X86_REG_RAX, UC_X86_REG_RBX, UC_X86_REG_RCX, UC_X86_REG_RDX,
+         UC_X86_REG_RSI, UC_X86_REG_RDI, UC_X86_REG_RSP, UC_X86_REG_RBP,
+         UC_X86_REG_RIP, UC_X86_REG_R8,  UC_X86_REG_R9,  UC_X86_REG_R10,
+         UC_X86_REG_R11, UC_X86_REG_R12, UC_X86_REG_R13, UC_X86_REG_R14,
+         UC_X86_REG_R15, UC_X86_REG_EFLAGS
+     };
+
+     for (uc_x86_reg reg : regs) {
+         uint64_t value = 0;
+         uc_reg_read(uc, reg, &value);
+         state[reg] = value;
+     }
+
+     return state;
+ }
+
 
  bool Emulator::hook_mem_read_unmaped(uc_engine* uc, uc_mem_type type, uint64_t address,
      int size, int64_t value, void* user_data) {

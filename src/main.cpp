@@ -34,7 +34,6 @@ int main() {
 
 
 
-
     uint64_t entry_point = main_program_start_address + (pe_loader.parsed_modules[pe_name]->entrypoint() - pe_loader.parsed_modules[pe_name]->imagebase());
     emulator.set_entry_point(entry_point);
 

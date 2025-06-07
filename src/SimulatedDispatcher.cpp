@@ -43,6 +43,10 @@ bool CallSimulatedFunction(const std::string& dllName, const std::string& functi
             ucrtbase32Sim::__stdio_common_vswprintf_s_s(emu);
             return true;
         }
+       if (functionName == "_initterm_e") {
+            ucrtbase32Sim::_initterm_e_s(emu);
+            return true;
+        }
         break;
     case DllId::Gdi32:
 
