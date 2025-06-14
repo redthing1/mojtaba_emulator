@@ -14,18 +14,11 @@ endif()
 project ("emulator")
 
 add_executable(emulator 
-    src/main.cpp
+    "main.cpp"
     src/Emulator.cpp
-    src/PELoader.cpp
+    "src/Loader.cpp"
     src/Disassembler.cpp
-    src/ImportResolver.cpp
-    "src/Logger.cpp" 
-    "src/SimulatedDispatcher.cpp"
-    "headers/SimulatedDispatcher.hpp" 
-    "SimulatedWindows/user32/user32Sim.cpp"
-    "SimulatedWindows/user32/user32Sim.hpp"
-    "SimulatedWindows/kernel32/Kernel32Sim.cpp"
-    "SimulatedWindows/kernel32/Kernel32Sim.hpp"  "SimulatedWindows/Ucrtbase/ucrtbase32Sim.cpp")
+    "src/Logger.cpp"   )
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET emulator PROPERTY CXX_STANDARD 20)
@@ -36,8 +29,6 @@ if (WIN32)
 endif()
 
 # TODO: Add tests and install targets if needed.
-add_subdirectory(deps/LIEF)
-target_link_libraries(emulator LIEF::LIEF)
 
 add_subdirectory(deps/unicorn)
 target_link_libraries(emulator unicorn)
