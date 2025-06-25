@@ -16,7 +16,8 @@ private:
     static void hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
     static void hook_code_block(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
     static bool hook_mem_invalid(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data);
-
+    void ReloadAtAddress(uint64_t address);
+    uint64_t Poi(uc_x86_reg reg);
     std::string exeName;
     std::wstring wExeName;
     ProcessLoader loader;

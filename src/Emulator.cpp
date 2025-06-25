@@ -46,10 +46,35 @@ void Emulator::hook_code_block(uc_engine* uc, uint64_t address, uint32_t size, v
     std::string funcName = self->loader.GetExportedFunctionNameByAddress(address);
     if (funcName != "") {
         Logger::logf(Logger::Color::CYAN, "[+] %s", funcName.c_str());
+    self->ReloadAtAddress(self->Poi(UC_X86_REG_RSP));
     }
+
+
+}
+void Emulator::ReloadAtAddress(uint64_t address) {
+    
+    loader.RemoveBreakpoint();
+    loader.SetBreakpoint((void*)address);
+    loader.resume_program();
+    loader.DebugLoop(unicorn);
 
 }
 
+uint64_t Emulator::Poi(uc_x86_reg reg) {
+    uint64_t addr = 0;
+    if (uc_reg_read(unicorn, reg, &addr) != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to read register");
+        return 0;
+    }
+
+    uint64_t value = 0;
+    if (uc_mem_read(unicorn, addr, &value, sizeof(uint64_t)) != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to read memory at 0x%llx", addr);
+        return 0;
+    }
+
+    return value;
+}
 bool Emulator::initialize() {
     Logger::logf(Logger::Color::GREEN, "[+] Initializing Unicorn Engine...");
 

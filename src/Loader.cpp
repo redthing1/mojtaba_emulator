@@ -37,13 +37,10 @@ bool ProcessLoader::CreateTargetProcess() {
     return false;
 }
 LPVOID ProcessLoader::GetEntryPointAddress() {
-    using _NtQueryInformationProcess = NTSTATUS(WINAPI*)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
-    static auto NtQueryInfo = reinterpret_cast<_NtQueryInformationProcess>(
-        GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
-    if (!NtQueryInfo) return nullptr;
+
 
     PROCESS_BASIC_INFORMATION pbi{};
-    if (NtQueryInfo(pi_.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), nullptr) != 0)
+    if (NtQueryInformationProcess(pi_.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), nullptr) != 0)
         return nullptr;
 
 
@@ -65,13 +62,9 @@ LPVOID ProcessLoader::GetEntryPointAddress() {
 
 std::vector<LPVOID> ProcessLoader::GetAllTLSCallbackAddresses() {
     std::vector<LPVOID> callbacks;
-    using _NtQueryInformationProcess = NTSTATUS(WINAPI*)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
-    auto NtQueryInfo = reinterpret_cast<_NtQueryInformationProcess>(
-        GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess"));
-    if (!NtQueryInfo) return callbacks;
 
     PROCESS_BASIC_INFORMATION pbi{};
-    if (NtQueryInfo(pi_.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), nullptr) != 0)
+    if (NtQueryInformationProcess(pi_.hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), nullptr) != 0)
         return callbacks;
 
     PEB peb{};
@@ -142,6 +135,30 @@ bool ProcessLoader::SetBreakpointAtStartup(uc_engine* unicorn) {
     return true;
 }
 
+bool ProcessLoader::IsThreadAtBreakpoint( uint64_t breakpointAddress) {
+    HANDLE hThread = pi_.hThread;
+    CONTEXT ctx = {};
+    ctx.ContextFlags = CONTEXT_CONTROL;
+
+#ifdef _WIN64
+    if (!GetThreadContext(hThread, &ctx)) {
+        ResumeThread(hThread);
+        return false;
+    }
+
+    bool isAtBp = (ctx.Rip == breakpointAddress);
+#else
+    if (!GetThreadContext(hThread, &ctx)) {
+        ResumeThread(hThread);
+        return false;
+    }
+
+    bool isAtBp = (ctx.Eip == breakpointAddress);
+#endif
+
+    ResumeThread(hThread);
+    return isAtBp;
+}
 void ProcessLoader::DebugLoop() {
     DEBUG_EVENT dbgEvent;
     while (WaitForDebugEvent(&dbgEvent, INFINITE)) {
@@ -149,6 +166,8 @@ void ProcessLoader::DebugLoop() {
             dbgEvent.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_BREAKPOINT) {
 
             DWORD hitThreadId = dbgEvent.dwThreadId;
+            lastDebugState.lastEvent = dbgEvent;
+            lastDebugState.hasPendingEvent = true;
             HANDLE hThread = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, FALSE, hitThreadId);
             if (!hThread) {
                 Logger::logf(Logger::Color::RED, "[-] OpenThread failed for thread %lu", hitThreadId);
@@ -178,6 +197,49 @@ void ProcessLoader::DebugLoop() {
     }
 }
 
+void ProcessLoader::DebugLoop(uc_engine* unicorn) {
+    DEBUG_EVENT dbgEvent;
+    while (WaitForDebugEvent(&dbgEvent, INFINITE)) {
+        if (dbgEvent.dwDebugEventCode == EXCEPTION_DEBUG_EVENT &&
+            dbgEvent.u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_BREAKPOINT) {
+
+            DWORD hitThreadId = dbgEvent.dwThreadId;
+            lastDebugState.lastEvent = dbgEvent;
+            lastDebugState.hasPendingEvent = true;
+            HANDLE hThread = OpenThread(THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, FALSE, hitThreadId);
+            if (!hThread) {
+                Logger::logf(Logger::Color::RED, "[-] OpenThread failed for thread %lu", hitThreadId);
+                ContinueDebugEvent(dbgEvent.dwProcessId, dbgEvent.dwThreadId, DBG_EXCEPTION_NOT_HANDLED);
+                continue;
+            }
+
+            CONTEXT ctx = {};
+            ctx.ContextFlags = CONTEXT_ALL;
+            if (!GetThreadContext(hThread, &ctx)) {
+                CloseHandle(hThread);
+                ContinueDebugEvent(dbgEvent.dwProcessId, dbgEvent.dwThreadId, DBG_EXCEPTION_NOT_HANDLED);
+                continue;
+            }
+
+
+            if (ctx.Rip == breakpointAddress_ + 1 || ctx.Rip == breakpointAddress_) {
+                ctx.Rip = breakpointAddress_;
+                SetThreadContext(hThread, &ctx);
+
+
+                LoadAllMemoryRegionsToUnicorn(unicorn);
+
+                tlsThreadId_ = hitThreadId;
+                CloseHandle(hThread);
+                break;
+            }
+            CloseHandle(hThread);
+        }
+        ContinueDebugEvent(dbgEvent.dwProcessId, dbgEvent.dwThreadId, DBG_CONTINUE);
+    }
+}
+
+
 CpuRegisters ProcessLoader::GetRegisters() {
     CONTEXT ctx = { .ContextFlags = CONTEXT_ALL };
     CpuRegisters regs{};
@@ -200,7 +262,7 @@ CpuRegisters ProcessLoader::GetRegisters() {
     }
 
     if (hThread != pi_.hThread) CloseHandle(hThread);
-    Logger::logf(Logger::Color::GREEN, "[+] Registers captured from Thread ID: %lu", tlsThreadId_);
+   // Logger::logf(Logger::Color::GREEN, "[+] Registers captured from Thread ID: %lu", tlsThreadId_);
     return regs;
 }
 
@@ -211,6 +273,7 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
     while (VirtualQueryEx(pi_.hProcess, addr, &mbi, sizeof(mbi)) == sizeof(mbi)) {
         DWORD prot = mbi.Protect & 0xFF;
         bool readable = prot == PAGE_READONLY || prot == PAGE_READWRITE || prot == PAGE_EXECUTE_READ || prot == PAGE_EXECUTE_READWRITE;
+
         if (mbi.State == MEM_COMMIT && readable && (mbi.Type == MEM_IMAGE || mbi.Type == MEM_PRIVATE)) {
             std::vector<uint8_t> buffer(mbi.RegionSize);
             SIZE_T bytesRead = 0;
@@ -227,17 +290,32 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
                 default: ucProt = UC_PROT_READ; break;
                 }
 
-                if (uc_mem_map(unicorn, (uint64_t)mbi.BaseAddress, mbi.RegionSize, ucProt) != UC_ERR_OK) {
-                    Logger::logf(Logger::Color::RED, "[-] uc_mem_map failed at 0x%llx", (uint64_t)mbi.BaseAddress);
-                }
-                else {
-                    for (auto& [addr, origByte] : originalBytes_) {
-                        if (addr >= (uint64_t)mbi.BaseAddress && addr < (uint64_t)mbi.BaseAddress + bytesRead) {
-                            buffer[addr - (uint64_t)mbi.BaseAddress] = origByte;
-                        }
-                    }
-                    uc_mem_write(unicorn, (uint64_t)mbi.BaseAddress, buffer.data(), bytesRead);
 
+                bool alreadyMapped = false;
+                for (const MemoryRegion& region : memoryRegions_) {
+                    uint64_t base = region.base;
+                    size_t size = region.size;
+                    if ((uint64_t)mbi.BaseAddress >= base && (uint64_t)mbi.BaseAddress < base + size) {
+                        alreadyMapped = true;
+                        break;
+                    }
+                }
+
+                if (!alreadyMapped) {
+                    if (uc_mem_map(unicorn, (uint64_t)mbi.BaseAddress, mbi.RegionSize, ucProt) != UC_ERR_OK) {
+                        Logger::logf(Logger::Color::RED, "[-] uc_mem_map failed at 0x%llx", (uint64_t)mbi.BaseAddress);
+                    }
+                }
+
+                for (auto& [addr, origByte] : originalBytes_) {
+                    if (addr >= (uint64_t)mbi.BaseAddress && addr < (uint64_t)mbi.BaseAddress + bytesRead) {
+                        buffer[addr - (uint64_t)mbi.BaseAddress] = origByte;
+                    }
+                }
+
+                uc_mem_write(unicorn, (uint64_t)mbi.BaseAddress, buffer.data(), bytesRead);
+
+                if (!alreadyMapped) {
                     std::string regionName = GetMappedFileNameAtAddress(mbi.BaseAddress);
                     memoryRegions_.emplace_back((uint64_t)mbi.BaseAddress, mbi.RegionSize, regionName);
                 }
@@ -245,8 +323,8 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
         }
         addr += mbi.RegionSize;
     }
-    const CpuRegisters& regs = GetRegisters();
 
+    const CpuRegisters& regs = GetRegisters();
     struct {
         int id;
         uint64_t val;
@@ -272,11 +350,12 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
     for (auto& r : reg_map) {
         uc_reg_write(unicorn, r.id, &r.val);
     }
+
     uint64_t teb = GetTEBAddress(tlsThreadId_);
     uc_reg_write(unicorn, UC_X86_REG_GS_BASE, &teb);
-    Logger::logf(Logger::Color::GREEN, "[+] GS Base set to TEB address: 0x%llx", teb);
-
+   // Logger::logf(Logger::Color::GREEN, "[+] GS Base set to TEB address: 0x%llx", teb);
 }
+
 
 
 
@@ -290,10 +369,6 @@ std::wstring ProcessLoader::GetModuleNameByAddress(uint64_t address) {
 }
 
 uint64_t ProcessLoader::GetTEBAddress(DWORD threadId) {
-    using _NtQueryInformationThread = NTSTATUS(WINAPI*)(HANDLE, THREADINFOCLASS, PVOID, ULONG, PULONG);
-    static auto NtQueryInformationThread = reinterpret_cast<_NtQueryInformationThread>(
-        GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationThread"));
-    if (!NtQueryInformationThread) return 0;
 
     HANDLE hThread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, threadId);
     if (!hThread) return 0;
@@ -382,6 +457,59 @@ bool ProcessLoader::MapSingleMemoryPageToUnicorn(uc_engine* unicorn, uint64_t ad
 
     std::string name = GetMappedFileNameAtAddress(mbi.BaseAddress);
     memoryRegions_.push_back({ (uint64_t)mbi.BaseAddress, mbi.RegionSize, name });
+
+    return true;
+}
+bool ProcessLoader::resume_program() {
+    if (!initialized_) {
+        Logger::logf(Logger::Color::RED, "[-] Process not initialized, cannot resume.");
+        return false;
+    }
+
+    if (lastDebugState.hasPendingEvent) {
+        if (ContinueDebugEvent(lastDebugState.lastEvent.dwProcessId,
+            lastDebugState.lastEvent.dwThreadId,
+            DBG_CONTINUE)) {
+            lastDebugState.hasPendingEvent = false;
+            //Logger::logf(Logger::Color::GREEN, "[+] Process resumed from suspended state.");
+            return true;
+        }
+        else {
+            Logger::logf(Logger::Color::RED, "[-] Failed to continue debug event: %lu", GetLastError());
+            return false;
+        }
+    }
+
+    Logger::logf(Logger::Color::YELLOW, "[*] No pending debug event to resume.");
+    return false;
+}
+
+bool ProcessLoader::SetBreakpoint(void* address) {
+    BYTE originalByte = 0;
+
+
+    if (!ReadProcessMemory(pi_.hProcess, address, &originalByte, 1, nullptr)) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to read original byte at 0x%llx", (uint64_t)address);
+        return false;
+    }
+
+
+    originalBytes_[(uint64_t)address] = originalByte;
+
+    BYTE int3 = 0xCC;
+
+    if (!WriteProcessMemory(pi_.hProcess, address, &int3, 1, nullptr)) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to write breakpoint at 0x%llx", (uint64_t)address);
+        return false;
+    }
+
+    if (!FlushInstructionCache(pi_.hProcess, address, 1)) {
+        Logger::logf(Logger::Color::YELLOW, "[!] FlushInstructionCache failed at 0x%llx", (uint64_t)address);
+       
+    }
+
+    breakpointAddress_ = (uint64_t)address;
+   // Logger::logf(Logger::Color::GREEN, "[+] Breakpoint set at 0x%llx", breakpointAddress_);
 
     return true;
 }
@@ -499,6 +627,20 @@ DWORD ProcessLoader::RvaToOffset(LPVOID fileBase, DWORD rva) {
     }
 
     return rva;
+}
+bool ProcessLoader::RemoveBreakpoint() {
+    auto it = originalBytes_.find(breakpointAddress_);
+    if (it == originalBytes_.end()) return false;
+
+    BYTE originalByte = it->second;
+    SIZE_T bytesWritten = 0;
+    if (!WriteProcessMemory(pi_.hProcess, (LPVOID)breakpointAddress_, &originalByte, 1, &bytesWritten) || bytesWritten != 1) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to restore original byte at 0x%llx", breakpointAddress_);
+        return false;
+    }
+    FlushInstructionCache(pi_.hProcess, (LPVOID)breakpointAddress_, 1);
+   // Logger::logf(Logger::Color::GREEN, "[+] Restored original byte at 0x%llx", breakpointAddress_);
+    return true;
 }
 
 void ProcessLoader::Cleanup() {

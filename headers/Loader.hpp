@@ -16,7 +16,10 @@ struct CpuRegisters {
 
     uint64_t xmm[16][16];
 };
-
+struct DebugState {
+    DEBUG_EVENT lastEvent;
+    bool hasPendingEvent = false;
+};
 typedef struct _THREAD_BASIC_INFORMATION {
     NTSTATUS ExitStatus;
     PVOID TebBaseAddress;
@@ -38,6 +41,7 @@ struct MemoryRegion {
 
 class ProcessLoader {
     bool isTlsMode_ = false;
+    DebugState lastDebugState;
     DWORD tlsThreadId_ = 0;
     DWORD targetThreadId_ = 0;
     uint64_t breakpointAddress_ = 0;
@@ -60,6 +64,11 @@ public:
     std::vector<MemoryRegion> GetMemoryRegion();
     bool MapSingleMemoryPageToUnicorn(uc_engine* unicorn, uint64_t address);
     std::string GetExportedFunctionNameByAddress(uint64_t addr);
+    bool RemoveBreakpoint();
+    bool resume_program();
+    bool SetBreakpoint(void* address);
+    void DebugLoop(uc_engine* unicorn);
+    bool IsThreadAtBreakpoint( uint64_t breakpointAddress);
 private:
     std::wstring exePath_;
     PROCESS_INFORMATION pi_{};
@@ -72,5 +81,6 @@ private:
     bool SetBreakpointAtStartup(uc_engine* unicorn);
     std::string GetMappedFileNameAtAddress(LPVOID base);
     void DebugLoop();
+
     void Cleanup();
 };
