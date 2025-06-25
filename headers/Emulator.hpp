@@ -13,6 +13,10 @@ public:
     bool start();
 
 private:
+    static void hook_syscall(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
+    static void hook_cpuid(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
+    static void hook_mem_write(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data);
+    static void hook_mem_read(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data);
     static void hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
     static void hook_code_block(uc_engine* uc, uint64_t address, uint32_t size, void* user_data);
     static bool hook_mem_invalid(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data);

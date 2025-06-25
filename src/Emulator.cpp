@@ -15,11 +15,36 @@ Emulator::~Emulator() {
         Logger::logf(Logger::Color::GREEN, "[+] Unicorn engine closed. Instruction count: %llu", instruction_count);
     }
 }
+void Emulator::hook_mem_read(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data) {
+    uint64_t rip;
+    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+    Logger::logf(Logger::Color::YELLOW, "[MEM-READ] Address: 0x%llx ", rip);
+}
 
+
+void Emulator::hook_mem_write(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data) {
+    uint64_t rip;
+    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+    Logger::logf(Logger::Color::YELLOW, "[MEM-WRITE] Address: 0x%llx  Value: 0x%llx", rip, value);
+}
+
+
+void Emulator::hook_cpuid(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
+    uint64_t rip;
+    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+    Logger::logf(Logger::Color::YELLOW, "[CPUID] Executed at 0x%llx", rip);
+}
+
+
+void Emulator::hook_syscall(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
+    uint64_t rip;
+    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+    Logger::logf(Logger::Color::YELLOW, "[in Line SYSCALL] Executed at 0x%llx", rip);
+}
 void Emulator::hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
     Emulator* self = static_cast<Emulator*>(user_data);
     self->instruction_count++;
-    Logger::logf(Logger::Color::CYAN, "[+] Instruction @ 0x%llx (size: %u)", address, size);
+    Logger::logf(Logger::Color::YELLOW, "[+] Instruction @ 0x%llx (size: %u)", address, size);
 }
 
 bool Emulator::hook_mem_invalid(uc_engine* uc, uc_mem_type type, uint64_t address,
@@ -120,6 +145,28 @@ bool Emulator::start() {
         Logger::logf(Logger::Color::RED, "[-] Failed to add invalid memory hook: %s", uc_strerror(err));
         return false;
     }
+
+    uc_hook mem_read_hook;
+    err = uc_hook_add(unicorn, &mem_read_hook, UC_HOOK_MEM_READ, (void*) hook_mem_read, this, 1, 0);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to add memory read hook: %s", uc_strerror(err));
+    }
+
+    uc_hook mem_write_hook;
+    err = uc_hook_add(unicorn, &mem_write_hook, UC_HOOK_MEM_WRITE, (void*)hook_mem_write, this, 1, 0);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to add memory write hook: %s", uc_strerror(err));
+    }
+
+    uc_hook cpuid_hook;
+    err = uc_hook_add(unicorn, &cpuid_hook, UC_HOOK_INSN, (void*)hook_cpuid, this, 1, 0);
+
+
+    // SYSCALL instruction
+    uc_hook syscall_hook;
+    err = uc_hook_add(unicorn, &syscall_hook, UC_HOOK_INSN, (void*)hook_syscall, this, 1, 0);
+
+
 
     uint64_t startAddr;
     uc_reg_read(unicorn, UC_X86_REG_RIP, &startAddr);
