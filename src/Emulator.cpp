@@ -25,7 +25,7 @@ void Emulator::hook_mem_read(uc_engine* uc, uint64_t address, int size, int64_t 
 void Emulator::hook_mem_write(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data) {
     uint64_t rip;
     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
-    Logger::logf(Logger::Color::YELLOW, "[MEM-WRITE] Address: 0x%llx  Value: 0x%llx", rip, value);
+    Logger::logf(Logger::Color::YELLOW, "[MEM-WRITE] Address: 0x%llx  ", rip);
 }
 
 
@@ -44,7 +44,12 @@ void Emulator::hook_syscall(uc_engine* uc, uint64_t address, uint32_t size, void
 void Emulator::hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
     Emulator* self = static_cast<Emulator*>(user_data);
     self->instruction_count++;
-    Logger::logf(Logger::Color::YELLOW, "[+] Instruction @ 0x%llx (size: %u)", address, size);
+    Disassembler dis;
+    uint64_t rip;
+    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+    dis.disassemble_at(uc, rip);
+   
+    Logger::logf(Logger::Color::YELLOW, "[RPS]: 0x%llx", self->Poi(UC_X86_REG_RSP));
 }
 
 bool Emulator::hook_mem_invalid(uc_engine* uc, uc_mem_type type, uint64_t address,
@@ -124,11 +129,15 @@ bool Emulator::start() {
 
     uc_hook trace_hook_block;
 
-    // uc_hook trace_hook;
 
     uc_err err = uc_hook_add(unicorn, &trace_hook_block, UC_HOOK_BLOCK, (void*)hook_code_block, this, 1, 0);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to add code BLOCK hook : %s", uc_strerror(err));
+        return false;
+    }
+    // uc_hook trace_hook;
 
-    // uc_err err = uc_hook_add(unicorn, &trace_hook, UC_HOOK_CODE, (void*)hook_code, this, 1, 0);
+    //  err = uc_hook_add(unicorn, &trace_hook, UC_HOOK_CODE, (void*)hook_code, this, 1, 0);
 
     if (err != UC_ERR_OK) {
         Logger::logf(Logger::Color::RED, "[-] Failed to add code hook: %s", uc_strerror(err));

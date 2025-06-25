@@ -45,7 +45,7 @@ public:
 
         count = cs_disasm(cs, code, sizeof(code), rip, 1, &insn);
         if (count > 0) {
-            std::cout << "[+] Disassembly at RIP:\n";
+         //   std::cout << "[+] Disassembly at RIP:\n";
             std::cout << "0x" << std::hex << insn[0].address << ": "
                 << insn[0].mnemonic << " " << insn[0].op_str << "\n";
             cs_free(insn, count);
