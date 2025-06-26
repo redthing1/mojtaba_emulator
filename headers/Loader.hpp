@@ -54,7 +54,7 @@ class ProcessLoader {
 public:
     explicit ProcessLoader(const std::wstring& exePath);
     ~ProcessLoader();
-
+    std::vector<MemoryRegion> memoryRegions_;
     bool LoadAndInspect(uc_engine* unicorn);
     CpuRegisters GetRegisters();
     DWORD RvaToOffset(LPVOID fileBase, DWORD rva);
@@ -73,7 +73,7 @@ private:
     std::wstring exePath_;
     PROCESS_INFORMATION pi_{};
     bool initialized_;
-    std::vector<MemoryRegion> memoryRegions_;
+
     uint64_t GetTEBAddress(DWORD threadId);
     bool CreateTargetProcess();
     LPVOID GetEntryPointAddress();

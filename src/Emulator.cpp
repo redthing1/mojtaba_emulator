@@ -16,16 +16,37 @@ Emulator::~Emulator() {
     }
 }
 void Emulator::hook_mem_read(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data) {
-    uint64_t rip;
+    uint64_t rip, rsp;
     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
-    Logger::logf(Logger::Color::YELLOW, "[MEM-READ] Address: 0x%llx ", rip);
+    uc_reg_read(uc, UC_X86_REG_RSP, &rsp);
+
+
+    Emulator* self = static_cast<Emulator*>(user_data);
+
+    if (address >= rsp && address < rsp + 0x1000) {
+        // Stack read - skip
+        return;
+    }
+    if (address >= 0x00000007FFE0000 && address < 0x00000007FFE0000 + 0x1000) {
+        Logger::logf(Logger::Color::YELLOW, "[KUSER_SHARED_DATA] RIP: 0x%llx ", rip);
+        return;
+    }
+
+ 
 }
 
 
+
 void Emulator::hook_mem_write(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data) {
-    uint64_t rip;
-    uc_reg_read(uc, UC_X86_REG_RIP, &rip);
-    Logger::logf(Logger::Color::YELLOW, "[MEM-WRITE] Address: 0x%llx  ", rip);
+        uint64_t rip, rsp;
+        uc_reg_read(uc, UC_X86_REG_RIP, &rip);
+        uc_reg_read(uc, UC_X86_REG_RSP, &rsp);
+
+
+        if (address >= rsp && address < rsp + 0x1000) {
+            return;
+        }
+  //  Logger::logf(Logger::Color::YELLOW, "[MEM-WRITE] Address: 0x%llx  ", rip);
 }
 
 
@@ -58,14 +79,14 @@ bool Emulator::hook_mem_invalid(uc_engine* uc, uc_mem_type type, uint64_t addres
 
     uint64_t pageStart = address & ~0xFFF;
 
-    Logger::logf(Logger::Color::YELLOW, "[!] Invalid memory access @ 0x%llx (type: %d) -> trying to map page 0x%llx", address, type, pageStart);
+   // Logger::logf(Logger::Color::YELLOW, "[!] Invalid memory access @ 0x%llx (type: %d) -> trying to map page 0x%llx", address, type, pageStart);
 
     if (!self->loader.MapSingleMemoryPageToUnicorn(uc, pageStart)) {
         Logger::logf(Logger::Color::RED, "[-] Failed to dynamically map page at 0x%llx", pageStart);
         return false;  // do not retry access
     }
 
-    Logger::logf(Logger::Color::GREEN, "[+] Successfully mapped missing page @ 0x%llx", pageStart);
+  //  Logger::logf(Logger::Color::GREEN, "[+] Successfully mapped missing page @ 0x%llx", pageStart);
     return true;  // retry memory access
 }
 
@@ -137,7 +158,7 @@ bool Emulator::start() {
     }
     // uc_hook trace_hook;
 
-    //  err = uc_hook_add(unicorn, &trace_hook, UC_HOOK_CODE, (void*)hook_code, this, 1, 0);
+     // err = uc_hook_add(unicorn, &trace_hook, UC_HOOK_CODE, (void*)hook_code, this, 1, 0);
 
     if (err != UC_ERR_OK) {
         Logger::logf(Logger::Color::RED, "[-] Failed to add code hook: %s", uc_strerror(err));
@@ -161,11 +182,11 @@ bool Emulator::start() {
         Logger::logf(Logger::Color::RED, "[-] Failed to add memory read hook: %s", uc_strerror(err));
     }
 
-    uc_hook mem_write_hook;
-    err = uc_hook_add(unicorn, &mem_write_hook, UC_HOOK_MEM_WRITE, (void*)hook_mem_write, this, 1, 0);
-    if (err != UC_ERR_OK) {
-        Logger::logf(Logger::Color::RED, "[-] Failed to add memory write hook: %s", uc_strerror(err));
-    }
+    //uc_hook mem_write_hook;
+    //err = uc_hook_add(unicorn, &mem_write_hook, UC_HOOK_MEM_WRITE, (void*)hook_mem_write, this, 1, 0);
+   // if (err != UC_ERR_OK) {
+   //     Logger::logf(Logger::Color::RED, "[-] Failed to add memory write hook: %s", uc_strerror(err));
+   // }
 
     uc_hook cpuid_hook;
     err = uc_hook_add(unicorn, &cpuid_hook, UC_HOOK_INSN, (void*)hook_cpuid, this, 1, 0);

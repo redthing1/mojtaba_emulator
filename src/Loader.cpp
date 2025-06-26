@@ -423,80 +423,117 @@ bool ProcessLoader::MapSingleMemoryPageToUnicorn(uc_engine* unicorn, uint64_t ad
     MEMORY_BASIC_INFORMATION mbi{};
     SIZE_T result = VirtualQueryEx(pi_.hProcess, reinterpret_cast<LPCVOID>(pageBase), &mbi, sizeof(mbi));
     if (result != sizeof(mbi)) {
-        Logger::logf(Logger::Color::RED, "[-] VirtualQueryEx failed at 0x%llx", pageBase);
+       Logger::logf(Logger::Color::RED, "[-] VirtualQueryEx failed at 0x%llx (returned size = 0x%llx), error = %lu",pageBase, result, GetLastError());
         return false;
     }
 
+  //  Logger::logf(Logger::Color::CYAN,"[*] VirtualQueryEx: Base=0x%llx, RegionSize=0x%llx, State=0x%lx, Protect=0x%lx, Type=0x%lx",reinterpret_cast<uint64_t>(mbi.BaseAddress),mbi.RegionSize,mbi.State,mbi.Protect,mbi.Type);
+
     DWORD prot = mbi.Protect;
-    if ((prot & PAGE_GUARD) || prot == PAGE_NOACCESS) {
-        Logger::logf(Logger::Color::YELLOW, "[!] Memory page 0x%llx has PAGE_GUARD or PAGE_NOACCESS protection, mapping zero page.", pageBase);
 
-
-        uc_err err = uc_mem_map(unicorn, pageBase, pageSize, UC_PROT_READ | UC_PROT_WRITE);
-        if (err != UC_ERR_OK) {
-            Logger::logf(Logger::Color::RED, "[-] uc_mem_map zero page failed at 0x%llx: %s", pageBase, uc_strerror(err));
-            return false;
-        }
-
-        std::vector<uint8_t> zeroPage(pageSize, 0);
-        uc_mem_write(unicorn, pageBase, zeroPage.data(), pageSize);
-        memoryRegions_.push_back({ pageBase, pageSize, "ZeroPageFallback" });
-        return true;
-    }
-
-    bool readable = (prot & PAGE_READONLY) || (prot & PAGE_READWRITE) || (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE);
-    if (!(mbi.State == MEM_COMMIT && readable)) {
-        Logger::logf(Logger::Color::YELLOW, "[!] Memory at 0x%llx is not committed or readable, mapping zero page.", pageBase);
-
-        // fallback
-        uc_err err = uc_mem_map(unicorn, pageBase, pageSize, UC_PROT_READ | UC_PROT_WRITE);
-        if (err != UC_ERR_OK) {
-            Logger::logf(Logger::Color::RED, "[-] uc_mem_map zero page failed at 0x%llx: %s", pageBase, uc_strerror(err));
-            return false;
-        }
-
-        std::vector<uint8_t> zeroPage(pageSize, 0);
-        uc_mem_write(unicorn, pageBase, zeroPage.data(), pageSize);
-        memoryRegions_.push_back({ pageBase, pageSize, "ZeroPageFallback" });
-        return true;
-    }
-
+    // Check if already mapped
     for (const auto& region : memoryRegions_) {
         if (pageBase >= region.base && pageBase < region.base + region.size) {
-            Logger::logf(Logger::Color::YELLOW, "[!] Page 0x%llx already mapped to Unicorn.", pageBase);
+            Logger::logf(Logger::Color::YELLOW,
+                "[!] Page 0x%llx already mapped (inside region base=0x%llx size=0x%llx).",
+                pageBase, region.base, region.size);
             return true;
         }
     }
 
+    // Determine UC protection flags
+    auto GetUnicornProtection = [](DWORD protect) -> int {
+        int flags = UC_PROT_READ;
+        if (protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY))
+            flags |= UC_PROT_EXEC;
+        if (protect & (PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY))
+            flags |= UC_PROT_WRITE;
+        return flags;
+        };
+
+    bool readable = (prot & PAGE_READONLY) || (prot & PAGE_READWRITE) ||
+        (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE);
+
+    if ((prot & PAGE_GUARD) || prot == PAGE_NOACCESS || !(mbi.State == MEM_COMMIT && readable)) {
+      //  Logger::logf(Logger::Color::YELLOW,
+       //     "[!] Memory page 0x%llx has limited access (State=0x%lx, prot=0x%lx), trying ReadProcessMemory fallback.",
+       //     pageBase, mbi.State, prot);
+
+        std::vector<uint8_t> buffer(pageSize, 0);
+        SIZE_T bytesRead = 0;
+        if (ReadProcessMemory(pi_.hProcess, reinterpret_cast<LPCVOID>(pageBase), buffer.data(), pageSize, &bytesRead) && bytesRead > 0) {
+          //  Logger::logf(Logger::Color::CYAN,
+         //       "[*] ReadProcessMemory fallback succeeded: read 0x%llx bytes from 0x%llx",
+          //      bytesRead, pageBase);
+
+            int ucProt = GetUnicornProtection(prot);
+
+            uc_err err = uc_mem_map(unicorn, pageBase, pageSize, ucProt);
+            if (err != UC_ERR_OK) {
+                Logger::logf(Logger::Color::RED,
+                    "[-] uc_mem_map (fallback) failed at 0x%llx: %s",
+                    pageBase, uc_strerror(err));
+                return false;
+            }
+
+            uc_mem_write(unicorn, pageBase, buffer.data(), bytesRead);
+            memoryRegions_.push_back({ pageBase, pageSize, "ReadMemoryFallback" });
+          //  Logger::logf(Logger::Color::GREEN,
+          //      "[+] Successfully mapped missing page @ 0x%llx with fallback.",
+          //      pageBase);
+            return true;
+        }
+        else {
+            Logger::logf(Logger::Color::RED,
+                "[-] ReadProcessMemory fallback failed at 0x%llx, error = %lu",
+                pageBase, GetLastError());
+            return false;
+        }
+    }
+
+    // Standard case - fully accessible memory
     std::vector<uint8_t> buffer(pageSize);
     SIZE_T bytesRead = 0;
     if (!ReadProcessMemory(pi_.hProcess, reinterpret_cast<LPCVOID>(pageBase), buffer.data(), pageSize, &bytesRead) || bytesRead == 0) {
-        Logger::logf(Logger::Color::RED, "[-] ReadProcessMemory failed at 0x%llx", pageBase);
+        Logger::logf(Logger::Color::RED,
+            "[-] ReadProcessMemory failed at 0x%llx (bytesRead=0x%llx), error = %lu",
+            pageBase, bytesRead, GetLastError());
         return false;
     }
 
-    int ucProt = 0;
-    if ((prot & PAGE_READONLY) == PAGE_READONLY) ucProt = UC_PROT_READ;
-    else if ((prot & PAGE_READWRITE) == PAGE_READWRITE || (prot & PAGE_WRITECOPY) == PAGE_WRITECOPY) ucProt = UC_PROT_READ | UC_PROT_WRITE;
-    else if ((prot & PAGE_EXECUTE) == PAGE_EXECUTE) ucProt = UC_PROT_EXEC;
-    else if ((prot & PAGE_EXECUTE_READ) == PAGE_EXECUTE_READ) ucProt = UC_PROT_EXEC | UC_PROT_READ;
-    else if ((prot & PAGE_EXECUTE_READWRITE) == PAGE_EXECUTE_READWRITE || (prot & PAGE_EXECUTE_WRITECOPY) == PAGE_EXECUTE_WRITECOPY)
-        ucProt = UC_PROT_EXEC | UC_PROT_READ | UC_PROT_WRITE;
+    Logger::logf(Logger::Color::CYAN,
+        "[*] Successfully read 0x%llx bytes from target at 0x%llx",
+        bytesRead, pageBase);
+
+    int ucProt = GetUnicornProtection(prot);
+
+    Logger::logf(Logger::Color::CYAN,
+        "[*] Mapping 0x%llx with UC protection 0x%x (Windows prot=0x%lx)",
+        pageBase, ucProt, prot);
 
     uc_err err = uc_mem_map(unicorn, pageBase, pageSize, ucProt);
     if (err != UC_ERR_OK) {
-        Logger::logf(Logger::Color::RED, "[-] uc_mem_map failed at 0x%llx: %s", pageBase, uc_strerror(err));
+        Logger::logf(Logger::Color::RED,
+            "[-] uc_mem_map failed at 0x%llx: %s",
+            pageBase, uc_strerror(err));
         return false;
     }
 
     uc_mem_write(unicorn, pageBase, buffer.data(), bytesRead);
-    Logger::logf(Logger::Color::GREEN, "[+] Page at 0x%llx mapped to Unicorn", pageBase);
+    Logger::logf(Logger::Color::GREEN,
+        "[+] Page at 0x%llx mapped to Unicorn with %llu bytes written.",
+        pageBase, bytesRead);
 
     std::string name = GetMappedFileNameAtAddress(reinterpret_cast<void*>(pageBase));
+    Logger::logf(Logger::Color::CYAN,
+        "[*] Mapped file name for 0x%llx: %s",
+        pageBase, name.c_str());
+
     memoryRegions_.push_back({ pageBase, pageSize, name });
 
     return true;
 }
+
 
 
 
