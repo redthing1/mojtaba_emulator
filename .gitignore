@@ -363,7 +363,7 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # no deps
-deps/
+#deps/
 pdb/
 .vs/
 binary/
