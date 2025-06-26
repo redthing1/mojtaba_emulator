@@ -15,52 +15,137 @@ Emulator::~Emulator() {
         Logger::logf(Logger::Color::GREEN, "[+] Unicorn engine closed. Instruction count: %llu", instruction_count);
     }
 }
-void Emulator::hook_mem_read(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data) {
-    uint64_t rip, rsp;
+void Emulator::hook_mem_read(uc_engine* uc, uc_mem_type type, uint64_t address,
+    int size, int64_t value, void* user_data) {
+    uint64_t rip, rsp, gsbase;
     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
     uc_reg_read(uc, UC_X86_REG_RSP, &rsp);
-
+    uc_reg_read(uc, UC_X86_REG_GS_BASE, &gsbase);  
 
     Emulator* self = static_cast<Emulator*>(user_data);
 
-    if (address >= rsp && address < rsp + 0x1000) {
-        // Stack read - skip
+
+    if (address >= rsp && address < rsp + 0x1000)
         return;
-    }
-    if (address >= 0x00000007FFE0000 && address < 0x00000007FFE0000 + 0x1000) {
-        Logger::logf(Logger::Color::YELLOW, "[KUSER_SHARED_DATA] RIP: 0x%llx ", rip);
+
+    const uint64_t kuser_base = 0x00000007FFE0000;
+    const uint64_t kuser_size = 0x1000;
+
+    // KUSER_SHARED_DATA
+    if (address >= kuser_base && address < kuser_base + kuser_size) {
+        uint64_t offset = address - kuser_base;
+        std::string description = "Unknown";
+
+        auto it = kuser_shared_data_offsets.upper_bound(offset);
+        if (it != kuser_shared_data_offsets.begin()) {
+            --it;
+            uint64_t base_offset = it->first;
+            uint64_t delta = offset - base_offset;
+            if (delta == 0)
+                description = it->second;
+            else
+                description = it->second + " + 0x" + std::to_string(delta);
+        }
+
+        Logger::logf(Logger::Color::YELLOW,
+            "[KUSER_SHARED_DATA] Reading (%s) [RIP: 0x%llx]",
+            description.c_str(), rip);
         return;
     }
 
- 
+    // TEB
+    if (address >= gsbase && address < gsbase + 0x1000) {
+        uint64_t offset = address - gsbase;
+        std::string description = "Unknown";
+
+        auto it = teb_offsets.upper_bound(offset);
+        if (it != teb_offsets.begin()) {
+            --it;
+            uint64_t base_offset = it->first;
+            uint64_t delta = offset - base_offset;
+            if (delta == 0)
+                description = it->second;
+            else
+                description = it->second + " + 0x" + std::to_string(delta);
+        }
+
+        Logger::logf(Logger::Color::MAGENTA,
+            "[TEB] Reading (%s) at 0x%llx [RIP: 0x%llx]",
+            description.c_str(), address, rip);
+        return;
+    }
+
+    // PEB (TEB + 0x60)
+    uint64_t peb_address = 0;
+    uc_mem_read(uc, gsbase + 0x60, &peb_address, sizeof(peb_address));
+    if (address >= peb_address && address < peb_address + 0x1000) {
+        uint64_t offset = address - peb_address;
+        std::string description = "Unknown";
+
+        auto it = peb_offsets.upper_bound(offset);
+        if (it != peb_offsets.begin()) {
+            --it;
+            uint64_t base_offset = it->first;
+            uint64_t delta = offset - base_offset;
+            if (delta == 0)
+                description = it->second;
+            else
+                description = it->second + " + 0x" + std::to_string(delta);
+        }
+
+        Logger::logf(Logger::Color::CYAN,
+            "[PEB] Reading (%s) at 0x%llx [RIP: 0x%llx]",
+            description.c_str(), address, rip);
+        return;
+    }
+  
+        if (self->loader.GetModuleNameByAddress(address) == self->wExeName) {
+            Logger::logf(Logger::Color::GREEN,
+                "[SELF-READ] Reading from code memory at 0x%llx [RIP: 0x%llx]",
+                address, rip);
+            return;
+        }
+    
+
 }
 
 
 
-void Emulator::hook_mem_write(uc_engine* uc, uint64_t address, int size, int64_t value, void* user_data) {
+
+void Emulator::hook_mem_write(uc_engine* uc, uc_mem_type type, uint64_t address, int size, int64_t value, void* user_data) {
         uint64_t rip, rsp;
         uc_reg_read(uc, UC_X86_REG_RIP, &rip);
         uc_reg_read(uc, UC_X86_REG_RSP, &rsp);
+        Emulator* self = static_cast<Emulator*>(user_data);
 
 
         if (address >= rsp && address < rsp + 0x1000) {
+            return;
+        }
+
+        if (self->loader.GetModuleNameByAddress(address) == self->wExeName) {
+            Logger::logf(Logger::Color::GREEN,
+                "[SELF-Write] Writing in code memory at 0x%llx [RIP: 0x%llx]",
+                address, rip);
             return;
         }
   //  Logger::logf(Logger::Color::YELLOW, "[MEM-WRITE] Address: 0x%llx  ", rip);
 }
 
 
-void Emulator::hook_cpuid(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
+void Emulator::hook_cpuid(uc_engine* uc, void* user_data) {
     uint64_t rip;
     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
-    Logger::logf(Logger::Color::YELLOW, "[CPUID] Executed at 0x%llx", rip);
+    Logger::logf(Logger::Color::MAGENTA, "[CPUID] Executed at 0x%llx", rip);
 }
 
 
-void Emulator::hook_syscall(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
+void Emulator::hook_syscall(uc_engine* uc, void* user_data) {
     uint64_t rip;
     uc_reg_read(uc, UC_X86_REG_RIP, &rip);
-    Logger::logf(Logger::Color::YELLOW, "[in Line SYSCALL] Executed at 0x%llx", rip);
+    uint64_t rax;
+    uc_reg_read(uc, UC_X86_REG_RAX, &rax);
+    Logger::logf(Logger::Color::CYAN, "[in Line SYSCALL]sycall : 0x%llx Executed at 0x%llx", rax, rip);
 }
 void Emulator::hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
     Emulator* self = static_cast<Emulator*>(user_data);
@@ -182,19 +267,21 @@ bool Emulator::start() {
         Logger::logf(Logger::Color::RED, "[-] Failed to add memory read hook: %s", uc_strerror(err));
     }
 
-    //uc_hook mem_write_hook;
-    //err = uc_hook_add(unicorn, &mem_write_hook, UC_HOOK_MEM_WRITE, (void*)hook_mem_write, this, 1, 0);
-   // if (err != UC_ERR_OK) {
-   //     Logger::logf(Logger::Color::RED, "[-] Failed to add memory write hook: %s", uc_strerror(err));
-   // }
+    uc_hook mem_write_hook;
+    err = uc_hook_add(unicorn, &mem_write_hook, UC_HOOK_MEM_WRITE, (void*)hook_mem_write, this, 1, 0);
+    if (err != UC_ERR_OK) {
+        Logger::logf(Logger::Color::RED, "[-] Failed to add memory write hook: %s", uc_strerror(err));
+    }
 
     uc_hook cpuid_hook;
-    err = uc_hook_add(unicorn, &cpuid_hook, UC_HOOK_INSN, (void*)hook_cpuid, this, 1, 0);
+    uc_hook_add(unicorn, &cpuid_hook, UC_HOOK_INSN, hook_cpuid, this, 1, 0,
+        UC_X86_INS_CPUID);
 
 
     // SYSCALL instruction
     uc_hook syscall_hook;
-    err = uc_hook_add(unicorn, &syscall_hook, UC_HOOK_INSN, (void*)hook_syscall, this, 1, 0);
+    uc_hook_add(unicorn, &syscall_hook, UC_HOOK_INSN, hook_syscall, this, 1, 0,
+        UC_X86_INS_SYSCALL);
 
 
 
