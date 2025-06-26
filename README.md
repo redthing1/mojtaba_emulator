@@ -59,4 +59,4 @@ Ensure the following are installed:
 1. **Clone the repository:**
 
 ```bash
-git clone https://github.com/mojtabafalleh/emulator
+git clone --recurse-submodules https://github.com/mojtabafalleh/emulator
