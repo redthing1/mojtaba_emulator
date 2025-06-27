@@ -37,4 +37,4 @@ The program runs the target application using debugging features and executes th
 git clone --recurse-submodules https://github.com/mojtabafalleh/emulator.git
 cd emulator
 # Run the program with your target application
-./emulator --target your_program.exe
+ emulator "D:\Project\Path\ \to \Your \program.exe"
