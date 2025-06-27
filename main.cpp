@@ -6,7 +6,7 @@ void printHelp() {
     Logger::logf(Logger::Color::GREEN, "Usage:");
     Logger::logf(Logger::Color::GREEN, "  emulator <full_path_to_exe>");
     Logger::logf(Logger::Color::GREEN, "\nExample:");
-    Logger::logf(Logger::Color::GREEN, R"(  emulator "D:\Project\emulator\binary\ConsoleApplication1.exe")");
+    Logger::logf(Logger::Color::GREEN, R"(  emulator "D:\helloworld.exe")");
     Logger::logf(Logger::Color::GREEN, "\nThis program runs the emulator on the specified executable.");
 }
 
