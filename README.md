@@ -1,62 +1,42 @@
-<div align="center">
+# Emulator-Debugger Hybrid 🐉🛠️
 
-# EMULATOR
 
-*Unleash the power of seamless binary exploration.*
-
-![last-commit](https://img.shields.io/github/last-commit/mojtabafalleh/emulator?style=flat&logo=git&logoColor=white&color=0080ff)
-![repo-top-language](https://img.shields.io/github/languages/top/mojtabafalleh/emulator?style=flat&color=0080ff)
-![repo-language-count](https://img.shields.io/github/languages/count/mojtabafalleh/emulator?style=flat&color=0080ff)
-
-*Built with the tools and technologies:*
-
-![JSON](https://img.shields.io/badge/JSON-000000.svg?style=flat&logo=JSON&logoColor=white)
-![Markdown](https://img.shields.io/badge/Markdown-000000.svg?style=flat&logo=Markdown&logoColor=white)
-![C++](https://img.shields.io/badge/C++-00599C.svg?style=flat&logo=C%2B%2B&logoColor=white)
-![CMake](https://img.shields.io/badge/CMake-064F8C.svg?style=flat&logo=CMake&logoColor=white)
-
-</div>
+*A unique hybrid tool combining debugger and emulator for precise execution and deep logging of complex programs*
 
 ---
 
-## 📚 Table of Contents
+## Overview
 
-- [Overview](#overview)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Usage](#usage)
-  - [Testing](#testing)
+This project is a unique hybrid tool between a **debugger** and an **emulator**, designed for precise execution of complex applications, especially those protected with layers like DRM in games.
+
+The program runs the target application using debugging features and executes the main parts of the code with **Unicorn Engine**. When execution reaches Windows API functions, it sets a **breakpoint** on their return addresses and hands control back to Unicorn. This results in **highly accurate and detailed logs**.
 
 ---
 
-## 🧩 Overview
+## What Makes This Project Unique?
 
-Introducing **emulator**, a powerful PE emulation framework designed for developers and researchers to analyze and manipulate Executable files in a controlled environment.
-
-### Why emulator?
-
-This project streamlines the process of exploring software behavior, enhancing debugging and analysis capabilities. The core features include:
-
-- 🎯 **PE Emulation Framework**: Simplifies the analysis and debugging of Executable files.
-- 🔗 **Dynamic Library Management**: Seamless loading and resolution of DLLs.
-- ⚙️ **Integration with Unicorn Engine**: Executes x86_64 binaries robustly.
-- 📜 **Centralized Logging**: Clear and formatted logs for better visibility.
+- Hybrid execution combining debugger and emulator for high precision and performance  
+- Detailed logging, especially around Windows API function calls  
+- Ideal for complex and protected applications (e.g., DRM-protected games)  
+- Full control over execution at function and return address levels  
 
 ---
 
-## 🚀 Getting Started
+## Features
 
-### 🧱 Prerequisites
+- Executes code segments using **Unicorn Engine** for speed and flexibility  
+- Sets **breakpoints** at Windows API return addresses and resumes emulation  
+- Produces reliable and detailed logs for in-depth program analysis  
+- Designed to handle the complexity of protected software execution  
 
-Ensure the following are installed:
+---
 
-- **Programming Language**: C++
-- **Build Tool**: CMake
-
-### 📦 Installation
-
-1. **Clone the repository:**
+## Usage
 
 ```bash
-git clone --recurse-submodules https://github.com/mojtabafalleh/emulator
+git clone --recurse-submodules https://github.com/mojtabafalleh/emulator.git
+cd emulator
+cmake .
+# then go to visual studio and open project by folder
+# Run the program with your target application
+ emulator "D:\Project\Path\ \to \Your \program.exe"
