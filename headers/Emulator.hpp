@@ -4,6 +4,7 @@
 #include "Loader.hpp"
 #include <map>
 #include <string>
+#include <unordered_set>
 
 static const std::map<uint64_t, std::string> kuser_shared_data_offsets = {
     {0x000, "TickCountLowDeprecated"},
@@ -116,7 +117,7 @@ static const std::map<uint64_t, std::string> peb_offsets = {
 class Emulator {
 
 public:
-  
+    uint64_t lastReloadedAddress = 0;
     Emulator(const std::string& exePath, const std::string& exeName);
     ~Emulator();
 

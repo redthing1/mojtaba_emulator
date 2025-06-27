@@ -5,7 +5,7 @@ int main() {
     Logger::logf(Logger::Color::GREEN, "[+] Starting Emulator...");
 
     std::string exepath = "D:\\Project\\emulator\\binary\\";
-    std::string exeName = "helloworld2.exe";
+    std::string exeName = "ConsoleApplication1.exe";
     Emulator emulator(exepath, exeName);
 
     if (!emulator.initialize()) {

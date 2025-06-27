@@ -272,11 +272,13 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
 
     while (VirtualQueryEx(pi_.hProcess, addr, &mbi, sizeof(mbi)) == sizeof(mbi)) {
         DWORD prot = mbi.Protect & 0xFF;
-        bool readable = prot == PAGE_READONLY || prot == PAGE_READWRITE || prot == PAGE_EXECUTE_READ || prot == PAGE_EXECUTE_READWRITE;
+        bool readable = (prot & PAGE_READONLY) || (prot & PAGE_READWRITE) ||
+            (prot & PAGE_EXECUTE_READ) || (prot & PAGE_EXECUTE_READWRITE);
 
         if (mbi.State == MEM_COMMIT && readable && (mbi.Type == MEM_IMAGE || mbi.Type == MEM_PRIVATE)) {
             std::vector<uint8_t> buffer(mbi.RegionSize);
             SIZE_T bytesRead = 0;
+
             if (ReadProcessMemory(pi_.hProcess, mbi.BaseAddress, buffer.data(), mbi.RegionSize, &bytesRead) && bytesRead > 0) {
                 int ucProt = 0;
                 switch (prot) {
@@ -287,9 +289,8 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
                 case PAGE_EXECUTE_READ: ucProt = UC_PROT_EXEC | UC_PROT_READ; break;
                 case PAGE_EXECUTE_READWRITE:
                 case PAGE_EXECUTE_WRITECOPY: ucProt = UC_PROT_EXEC | UC_PROT_READ | UC_PROT_WRITE; break;
-                default: ucProt = UC_PROT_READ; break;
+                default: ucProt = UC_PROT_ALL; break;
                 }
-
 
                 bool alreadyMapped = false;
                 for (const MemoryRegion& region : memoryRegions_) {
@@ -302,14 +303,21 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
                 }
 
                 if (!alreadyMapped) {
-                    if (uc_mem_map(unicorn, (uint64_t)mbi.BaseAddress, mbi.RegionSize, ucProt) != UC_ERR_OK) {
-                        Logger::logf(Logger::Color::RED, "[-] uc_mem_map failed at 0x%llx", (uint64_t)mbi.BaseAddress);
+                    uc_err err = uc_mem_map(unicorn, (uint64_t)mbi.BaseAddress, mbi.RegionSize, ucProt);
+                    if (err != UC_ERR_OK) {
+                        Logger::logf(Logger::Color::YELLOW, "[*] uc_mem_map failed with prot 0x%x at 0x%llx, retrying with UC_PROT_ALL...", ucProt, (uint64_t)mbi.BaseAddress);
+                        err = uc_mem_map(unicorn, (uint64_t)mbi.BaseAddress, mbi.RegionSize, UC_PROT_ALL);
+                        if (err != UC_ERR_OK) {
+                            Logger::logf(Logger::Color::RED, "[-] uc_mem_map still failed at 0x%llx", (uint64_t)mbi.BaseAddress);
+                            addr += mbi.RegionSize;
+                            continue;
+                        }
                     }
                 }
 
-                for (auto& [addr, origByte] : originalBytes_) {
-                    if (addr >= (uint64_t)mbi.BaseAddress && addr < (uint64_t)mbi.BaseAddress + bytesRead) {
-                        buffer[addr - (uint64_t)mbi.BaseAddress] = origByte;
+                for (auto& [patchAddr, origByte] : originalBytes_) {
+                    if (patchAddr >= (uint64_t)mbi.BaseAddress && patchAddr < (uint64_t)mbi.BaseAddress + bytesRead) {
+                        buffer[patchAddr - (uint64_t)mbi.BaseAddress] = origByte;
                     }
                 }
 
@@ -353,7 +361,7 @@ void ProcessLoader::LoadAllMemoryRegionsToUnicorn(uc_engine* unicorn) {
 
     uint64_t teb = GetTEBAddress(tlsThreadId_);
     uc_reg_write(unicorn, UC_X86_REG_GS_BASE, &teb);
-   // Logger::logf(Logger::Color::GREEN, "[+] GS Base set to TEB address: 0x%llx", teb);
+    // Logger::logf(Logger::Color::GREEN, "[+] GS Base set to TEB address: 0x%llx", teb);
 }
 
 

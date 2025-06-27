@@ -176,17 +176,30 @@ bool Emulator::hook_mem_invalid(uc_engine* uc, uc_mem_type type, uint64_t addres
 }
 
 void Emulator::hook_code_block(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
+
     Emulator* self = static_cast<Emulator*>(user_data);
-    self->instruction_count++;
+
     std::wstring moduleName = self->loader.GetModuleNameByAddress(address);
+    if (moduleName != self->wExeName) {
+
     std::string funcName = self->loader.GetExportedFunctionNameByAddress(address);
-    if (funcName != "") {
-        Logger::logf(Logger::Color::CYAN, "[+] %s", funcName.c_str());
-    self->ReloadAtAddress(self->Poi(UC_X86_REG_RSP));
+
+    uint64_t return_address = self->Poi(UC_X86_REG_RSP);
+
+
+
+    if (!funcName.empty()) {
+        if (self->lastReloadedAddress != return_address) {
+            Logger::logf(Logger::Color::CYAN, "[+] %s in %ls", funcName.c_str(), moduleName.c_str());
+            self->lastReloadedAddress = return_address;
+            self->ReloadAtAddress(return_address);
+        }
     }
 
 
+    }
 }
+
 void Emulator::ReloadAtAddress(uint64_t address) {
     
     loader.RemoveBreakpoint();
@@ -235,15 +248,19 @@ bool Emulator::start() {
 
     uc_hook trace_hook_block;
 
+    uc_err err;
 
-    uc_err err = uc_hook_add(unicorn, &trace_hook_block, UC_HOOK_BLOCK, (void*)hook_code_block, this, 1, 0);
-    if (err != UC_ERR_OK) {
-        Logger::logf(Logger::Color::RED, "[-] Failed to add code BLOCK hook : %s", uc_strerror(err));
-        return false;
-    }
+         err = uc_hook_add(unicorn, &trace_hook_block, UC_HOOK_BLOCK, (void*)hook_code_block, this, 1,0 );
+        if (err != UC_ERR_OK) {
+            Logger::logf(Logger::Color::RED, "[-] Failed to add code BLOCK hook : %s", uc_strerror(err));
+            return false;
+    
+        }
+
+
     // uc_hook trace_hook;
 
-     // err = uc_hook_add(unicorn, &trace_hook, UC_HOOK_CODE, (void*)hook_code, this, 1, 0);
+   //   err = uc_hook_add(unicorn, &trace_hook, UC_HOOK_CODE, (void*)hook_code, this, 1, 0);
 
     if (err != UC_ERR_OK) {
         Logger::logf(Logger::Color::RED, "[-] Failed to add code hook: %s", uc_strerror(err));
