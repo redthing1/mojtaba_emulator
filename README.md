@@ -1,6 +1,6 @@
 # Emulator-Debugger Hybrid 🐉🛠️
 
-![Project Banner](https://user-images.githubusercontent.com/yourusername/project-banner.png)  
+
 *A unique hybrid tool combining debugger and emulator for precise execution and deep logging of complex programs*
 
 ---
@@ -34,7 +34,7 @@ The program runs the target application using debugging features and executes th
 ## Usage
 
 ```bash
-git clone https://github.com/mojtabafalleh/emulator.git
+git clone --recurse-submodules https://github.com/mojtabafalleh/emulator.git
 cd emulator
 # Run the program with your target application
 ./emulator --target your_program.exe
