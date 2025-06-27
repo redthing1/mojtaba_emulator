@@ -36,5 +36,7 @@ The program runs the target application using debugging features and executes th
 ```bash
 git clone --recurse-submodules https://github.com/mojtabafalleh/emulator.git
 cd emulator
+cmake .
+# then go to visual studio and open project by folder
 # Run the program with your target application
  emulator "D:\Project\Path\ \to \Your \program.exe"
