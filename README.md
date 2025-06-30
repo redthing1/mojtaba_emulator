@@ -1,6 +1,6 @@
 # Emulator-Debugger Hybrid 🐉🛠️
 
-
+![Splash](https://github.com/mojtabafalleh/emulator/blob/master/doc/splash.png)
 *A unique hybrid tool combining debugger and emulator for precise execution and deep logging of complex programs*
 
 ---
