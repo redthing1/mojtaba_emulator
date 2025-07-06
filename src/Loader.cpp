@@ -233,7 +233,11 @@ void ProcessLoader::DebugLoop(uc_engine* unicorn) {
                 CloseHandle(hThread);
                 break;
             }
+         
             CloseHandle(hThread);
+        }
+        else {
+            exit(0);
         }
         ContinueDebugEvent(dbgEvent.dwProcessId, dbgEvent.dwThreadId, DBG_CONTINUE);
     }
