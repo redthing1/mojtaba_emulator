@@ -146,6 +146,9 @@ void Emulator::hook_syscall(uc_engine* uc, void* user_data) {
     uint64_t rax;
     uc_reg_read(uc, UC_X86_REG_RAX, &rax);
     Logger::logf(Logger::Color::CYAN, "[in Line SYSCALL]sycall : 0x%llx Executed at 0x%llx", rax, rip);
+    Emulator* self = static_cast<Emulator*>(user_data);
+    self->ReloadAtAddress(rip + 0x2);
+    
 }
 void Emulator::hook_code(uc_engine* uc, uint64_t address, uint32_t size, void* user_data) {
     Emulator* self = static_cast<Emulator*>(user_data);
